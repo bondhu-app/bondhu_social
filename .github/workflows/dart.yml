@@ -2,9 +2,9 @@ name: Build Flutter APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build:
@@ -17,7 +17,11 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: "3.35.0"
           channel: stable
+
+      - name: Generate Android files
+        run: flutter create . --platforms=android
 
       - name: Flutter pub get
         run: flutter pub get
@@ -28,5 +32,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: bondhu-apk
-          path: build/app/outputs/flutter-apk/app-release.apkapk
+          name: bondhu-social-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
