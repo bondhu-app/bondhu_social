@@ -1,31 +1,45 @@
+import 'package:flutter/material.dart';
 
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+void main() {
+  runApp(const BondhuApp());
+}
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+class BondhuApp extends StatelessWidget {
+  const BondhuApp({super.key});
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Bondhu Social',
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: Colors.green,
+      ),
+      home: const HomePage(),
+    );
+  }
+}
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
 
-      - name: Flutter pub get
-        run: flutter pub get
-
-      - name: Build APK
-        run: flutter build apk --release
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: bondhu-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Bondhu Social'),
+        centerTitle: true,
+      ),
+      body: const Center(
+        child: Text(
+          'স্বাগতম Bondhu Social-এ ❤️',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+}
