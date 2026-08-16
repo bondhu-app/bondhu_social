@@ -13,7 +13,6 @@ class DefaultFirebaseOptions {
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
-
       default:
         throw UnsupportedError(
           'This platform is not configured.',
