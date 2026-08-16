@@ -1,5 +1,5 @@
-name: bondhu
-description: Bondhu Social Media App
+name: bondhu_social
+description: "A new Flutter social media project."
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -10,17 +10,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
   cupertino_icons: ^1.0.6
-  google_mobile_ads: ^6.0.0
-  firebase_core: ^3.0.0
-  cloud_firestore: ^5.0.0
-  firebase_auth: ^5.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
   flutter_lints: ^3.0.0
 
 flutter:
