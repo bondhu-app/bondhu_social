@@ -28,10 +28,13 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.debug
+            shrinkResources false
+            minifyEnabled false
         }
     }
 }
 
 flutter {
     source "../.."
+}
 }
