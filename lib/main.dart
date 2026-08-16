@@ -70,9 +70,7 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
     try {
       await _auth.verifyPhoneNumber(
         phoneNumber: phone,
-
-        verificationCompleted:
-            (PhoneAuthCredential credential) async {
+        verificationCompleted: (PhoneAuthCredential credential) async {
           await _auth.signInWithCredential(credential);
 
           if (!mounted) return;
@@ -82,7 +80,6 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
             message = 'Phone verification সফল হয়েছে।';
           });
         },
-
         verificationFailed: (FirebaseAuthException e) {
           if (!mounted) return;
 
@@ -91,7 +88,6 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
             message = e.message ?? 'OTP পাঠানো যায়নি।';
           });
         },
-
         codeSent: (String id, int? resendToken) {
           if (!mounted) return;
 
@@ -102,7 +98,6 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
             message = 'OTP আপনার মোবাইলে পাঠানো হয়েছে।';
           });
         },
-
         codeAutoRetrievalTimeout: (String id) {
           verificationId = id;
         },
@@ -177,21 +172,17 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
         title: const Text('Bondhu Social'),
         centerTitle: true,
       ),
-
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
-
             child: Column(
               children: [
                 const Icon(
                   Icons.phone_android,
                   size: 80,
                 ),
-
                 const SizedBox(height: 20),
-
                 const Text(
                   'Bondhu Social',
                   style: TextStyle(
@@ -199,22 +190,15 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
                 const Text(
                   'মোবাইল নাম্বার দিয়ে Login করুন',
-                  style: TextStyle(
-                    fontSize: 16,
-                  ),
+                  style: TextStyle(fontSize: 16),
                 ),
-
                 const SizedBox(height: 30),
-
                 TextField(
                   controller: phoneController,
                   keyboardType: TextInputType.phone,
-
                   decoration: const InputDecoration(
                     labelText: 'মোবাইল নাম্বার',
                     hintText: '+8801XXXXXXXXX',
@@ -222,16 +206,12 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
                     prefixIcon: Icon(Icons.phone),
                   ),
                 ),
-
                 const SizedBox(height: 16),
-
                 SizedBox(
                   width: double.infinity,
                   height: 52,
-
                   child: ElevatedButton(
                     onPressed: loading ? null : sendOTP,
-
                     child: loading
                         ? const SizedBox(
                             height: 24,
@@ -240,21 +220,16 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
                           )
                         : const Text(
                             'OTP পাঠান',
-                            style: TextStyle(
-                              fontSize: 17,
-                            ),
+                            style: TextStyle(fontSize: 17),
                           ),
                   ),
                 ),
-
                 if (otpSent) ...[
                   const SizedBox(height: 24),
-
                   TextField(
                     controller: otpController,
                     keyboardType: TextInputType.number,
                     maxLength: 6,
-
                     decoration: const InputDecoration(
                       labelText: 'OTP',
                       hintText: '৬ সংখ্যার OTP দিন',
@@ -262,16 +237,12 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
                       prefixIcon: Icon(Icons.lock),
                     ),
                   ),
-
                   const SizedBox(height: 8),
-
                   SizedBox(
                     width: double.infinity,
                     height: 52,
-
                     child: ElevatedButton(
                       onPressed: loading ? null : verifyOTP,
-
                       child: loading
                           ? const SizedBox(
                               height: 24,
@@ -280,24 +251,17 @@ class _PhoneLoginPageState extends State<PhoneLoginPage> {
                             )
                           : const Text(
                               'OTP Verify করুন',
-                              style: TextStyle(
-                                fontSize: 17,
-                              ),
+                              style: TextStyle(fontSize: 17),
                             ),
                     ),
                   ),
                 ],
-
                 const SizedBox(height: 20),
-
                 if (message.isNotEmpty)
                   Text(
                     message,
                     textAlign: TextAlign.center,
-
-                    style: const TextStyle(
-                      fontSize: 16,
-                    ),
+                    style: const TextStyle(fontSize: 16),
                   ),
               ],
             ),
