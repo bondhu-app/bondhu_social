@@ -5,7 +5,7 @@ import 'admin_panel.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(); // ফায়ারবেস ইনিশিয়ালাইজেশন যুক্ত করা হয়েছে
+  await Firebase.initializeApp();
   await MobileAds.instance.initialize();
   runApp(const BondhuApp());
 }
