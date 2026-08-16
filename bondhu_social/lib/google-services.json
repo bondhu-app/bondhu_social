@@ -1,1 +1,29 @@
-
+{
+  "project_info": {
+    "project_number": "363053068335",
+    "project_id": "bondhu-social-c01e2",
+    "storage_bucket": "bondhu-social-c01e2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:363053068335:android:2edc8d7df9b0c8d8fd16da",
+        "android_client_info": {
+          "package_name": "com.bondhu.social"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBiAdWhCS12QN8qhi4esIOjwqQ1zPzetwg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
