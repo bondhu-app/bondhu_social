@@ -6,7 +6,7 @@ class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
       throw UnsupportedError(
-        'Web Firebase configuration is not set.',
+        'Web configuration is not available.',
       );
     }
 
@@ -14,52 +14,18 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
 
-      case TargetPlatform.iOS:
-        return ios;
-
-      case TargetPlatform.macOS:
-        return macos;
-
-      case TargetPlatform.windows:
-        return windows;
-
-      case TargetPlatform.linux:
-        return linux;
-
       default:
         throw UnsupportedError(
-          'This platform is not supported.',
+          'This platform is not configured.',
         );
     }
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'YOUR_ANDROID_API_KEY',
-    appId: 'YOUR_ANDROID_APP_ID',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
+    apiKey: 'AIzaSyBiAdWhCS12QN8qhi4esIOjwqQ1zPzetwg',
+    appId: '1:363053068335:android:2edc8d7df9b0c8d8fd16da',
+    messagingSenderId: '363053068335',
+    projectId: 'bondhu-social-c01e2',
+    storageBucket: 'bondhu-social-c01e2.firebasestorage.app',
   );
-
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'YOUR_IOS_API_KEY',
-    appId: 'YOUR_IOS_APP_ID',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
-    iosBundleId: 'YOUR_IOS_BUNDLE_ID',
-  );
-
-  static const FirebaseOptions macos = ios;
-
-  static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'YOUR_WEB_API_KEY',
-    appId: 'YOUR_WEB_APP_ID',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    authDomain: 'YOUR_PROJECT_ID.firebaseapp.com',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
-  );
-
-  static const FirebaseOptions linux = windows;
 }
