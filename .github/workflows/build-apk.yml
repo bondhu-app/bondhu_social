@@ -1,5 +1,5 @@
-      - name: Force Gradle 8.14
-        run: |
+  - name: Build APK
+        run: flutter build apk --release 8.14
           cd android
           sed -i 's#gradle-[0-9.]*-bin.zip#gradle-8.14-bin.zip#g' gradle/wrapper/gradle-wrapper.properties
           cat gradle/wrapper/gradle-wrapper.properties
