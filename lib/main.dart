@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'admin_panel.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await MobileAds.instance.initialize();
-
   runApp(const BondhuApp());
 }
 
@@ -18,110 +17,79 @@ class BondhuApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Bondhu Social',
       theme: ThemeData(
+        primarySwatch: Colors.teal,
         useMaterial3: true,
-        colorSchemeSeed: Colors.green,
       ),
-      home: const WelcomePage(),
+      home: const WelcomeScreen(),
     );
   }
 }
 
-class WelcomePage extends StatefulWidget {
-  const WelcomePage({super.key});
-
-  @override
-  State<WelcomePage> createState() => _WelcomePageState();
-}
-
-class _WelcomePageState extends State<WelcomePage> {
-  BannerAd? _bannerAd;
-  bool _isBannerLoaded = false;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _bannerAd = BannerAd(
-      adUnitId: 'ca-app-pub-3940256099942544/6300978111',
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          setState(() {
-            _isBannerLoaded = true;
-          });
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-        },
-      ),
-    );
-
-    _bannerAd!.load();
-  }
-
-  @override
-  void dispose() {
-    _bannerAd?.dispose();
-    super.dispose();
-  }
+class WelcomeScreen extends StatelessWidget {
+  const WelcomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Bondhu Social'),
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.people_alt,
-                      size: 90,
-                      color: Colors.green,
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'স্বাগতম Bondhu Social-এ',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'বন্ধুদের সাথে যুক্ত থাকুন',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    ElevatedButton(
-                      onPressed: () {},
-                      child: const Text('শুরু করুন'),
-                    ),
-                  ],
+      backgroundColor: const Color(0xFFA7C957),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'স্বাগতম Bondhu Social-এ ❤️',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 10),
+                const Text(
+                  'বন্ধুদের সাথে যুক্ত থাকুন',
+                  style: TextStyle(fontSize: 18, color: Colors.black87),
+                ),
+                const SizedBox(height: 40),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 50),
+                    backgroundColor: Colors.white,
+                  ),
+                  onPressed: () {},
+                  child: const Text('লগইন', style: TextStyle(color: Colors.black)),
+                ),
+                const SizedBox(height: 15),
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 50),
+                    side: const BorderSide(color: Colors.black),
+                  ),
+                  onPressed: () {},
+                  child: const Text('নতুন অ্যাকাউন্ট খুলুন', style: TextStyle(color: Colors.black)),
+                ),
+                const SizedBox(height: 25),
+                // অ্যাডমিন প্যানেল বাটন
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AdminPanelScreen()),
+                    );
+                  },
+                  icon: const Icon(Icons.admin_panel_settings, color: Colors.black),
+                  label: const Text(
+                    'Admin Panel',
+                    style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
             ),
           ),
-
-          if (_isBannerLoaded && _bannerAd != null)
-            SizedBox(
-              width: _bannerAd!.size.width.toDouble(),
-              height: _bannerAd!.size.height.toDouble(),
-              child: AdWidget(ad: _bannerAd!),
-            ),
-        ],
+        ),
       ),
     );
   }
