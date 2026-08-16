@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'admin_panel.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(); // ফায়ারবেস ইনিশিয়ালাইজেশন যুক্ত করা হয়েছে
   await MobileAds.instance.initialize();
   runApp(const BondhuApp());
 }
@@ -72,7 +74,6 @@ class WelcomeScreen extends StatelessWidget {
                   child: const Text('নতুন অ্যাকাউন্ট খুলুন', style: TextStyle(color: Colors.black)),
                 ),
                 const SizedBox(height: 25),
-                // অ্যাডমিন প্যানেল বাটন
                 TextButton.icon(
                   onPressed: () {
                     Navigator.push(
