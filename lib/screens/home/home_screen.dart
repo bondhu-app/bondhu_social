@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/data_service.dart';
+import '../profile/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,33 +17,37 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int _selectedIndex = 0;
 
-  void _showCreatePost() {
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut();
+  }
+
+  void _openProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const ProfileScreen(),
+      ),
+    );
+  }
+
+  void _openCreatePost() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) {
-        return const CreatePostSheet();
-      },
+      builder: (_) => const CreatePostSheet(),
     );
-  }
-
-  Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: const Color(0xFFF0F2F5),
 
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
         title: const Text(
           'বন্ধু সোশ্যাল',
           style: TextStyle(
-            fontSize: 25,
+            fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -53,9 +58,9 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.search_rounded),
           ),
           IconButton(
-            tooltip: 'Logout',
-            onPressed: _logout,
-            icon: const Icon(Icons.logout_rounded),
+            tooltip: 'Profile',
+            onPressed: _openProfile,
+            icon: const Icon(Icons.account_circle_outlined),
           ),
         ],
       ),
@@ -64,21 +69,9 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _selectedIndex,
         children: [
           _buildHomeFeed(),
-          _buildPlaceholder(
-            Icons.people_alt_rounded,
-            'বন্ধু',
-            'বন্ধুদের তালিকা এখানে আসবে।',
-          ),
-          _buildPlaceholder(
-            Icons.notifications_rounded,
-            'নোটিফিকেশন',
-            'আপনার নোটিফিকেশন এখানে আসবে।',
-          ),
-          _buildPlaceholder(
-            Icons.menu_rounded,
-            'Menu',
-            'Profile এবং Settings এখানে থাকবে।',
-          ),
+          _buildFriendsPage(),
+          _buildNotificationsPage(),
+          _buildMenuPage(),
         ],
       ),
 
@@ -114,13 +107,18 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
 
       floatingActionButton: _selectedIndex == 0
-          ? FloatingActionButton(
-              onPressed: _showCreatePost,
-              child: const Icon(Icons.add),
+          ? FloatingActionButton.extended(
+              onPressed: _openCreatePost,
+              icon: const Icon(Icons.add),
+              label: const Text('Post'),
             )
           : null,
     );
   }
+
+  // ============================================================
+  // HOME FEED
+  // ============================================================
 
   Widget _buildHomeFeed() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -131,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Text(
-                'Post লোড করতে সমস্যা হয়েছে।\n\n${snapshot.error}',
+                'Feed লোড করতে সমস্যা হয়েছে।\n\n${snapshot.error}',
                 textAlign: TextAlign.center,
               ),
             ),
@@ -160,7 +158,6 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               _buildCreatePostCard(),
               const SizedBox(height: 8),
-
               if (posts.isEmpty)
                 _buildEmptyFeed()
               else
@@ -197,7 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(
             child: InkWell(
               borderRadius: BorderRadius.circular(24),
-              onTap: _showCreatePost,
+              onTap: _openCreatePost,
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 18,
@@ -213,15 +210,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       : 'কী ভাবছেন?',
                   style: TextStyle(
                     color: Colors.grey.shade600,
-                    fontSize: 15,
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 8),
           IconButton(
-            onPressed: _showCreatePost,
+            onPressed: _openCreatePost,
             icon: const Icon(
               Icons.photo_library_rounded,
               color: Colors.green,
@@ -261,31 +256,236 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPlaceholder(
-    IconData icon,
-    String title,
-    String message,
-  ) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 80,
-            color: Colors.grey,
+  // ============================================================
+  // FRIENDS
+  // ============================================================
+
+  Widget _buildFriendsPage() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text(
+          'বন্ধু',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
           ),
-          const SizedBox(height: 18),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'আপনার বন্ধুদের এবং Friend Request এখানে দেখা যাবে।',
+        ),
+        const SizedBox(height: 25),
+        _menuCard(
+          icon: Icons.person_add_alt_1,
+          title: 'Friend Requests',
+          subtitle: 'আসা Friend Request দেখুন',
+          onTap: () {},
+        ),
+        _menuCard(
+          icon: Icons.people_alt_outlined,
+          title: 'All Friends',
+          subtitle: 'আপনার সব বন্ধু দেখুন',
+          onTap: () {},
+        ),
+        _menuCard(
+          icon: Icons.person_search_outlined,
+          title: 'Find Friends',
+          subtitle: 'নতুন বন্ধু খুঁজুন',
+          onTap: () {},
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // NOTIFICATIONS
+  // ============================================================
+
+  Widget _buildNotificationsPage() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text(
+          'Notifications',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(40),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: const Column(
+            children: [
+              Icon(
+                Icons.notifications_none,
+                size: 70,
+                color: Colors.grey,
+              ),
+              SizedBox(height: 15),
+              Text(
+                'এখনও কোনো Notification নেই।',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // MENU
+  // ============================================================
+
+  Widget _buildMenuPage() {
+    final user = FirebaseAuth.instance.currentUser;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text(
+          'Menu',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        Card(
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(12),
+            leading: CircleAvatar(
+              radius: 28,
+              backgroundColor: Colors.blue.shade100,
+              child: const Icon(
+                Icons.person,
+                size: 30,
+                color: Colors.blue,
+              ),
             ),
+            title: Text(
+              user?.displayName ?? 'বন্ধু',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 17,
+              ),
+            ),
+            subtitle: Text(
+              user?.email ?? '',
+            ),
+            trailing: const Icon(
+              Icons.chevron_right,
+            ),
+            onTap: _openProfile,
           ),
-          const SizedBox(height: 8),
-          Text(message),
-        ],
+        ),
+
+        const SizedBox(height: 12),
+
+        _menuCard(
+          icon: Icons.person_outline,
+          title: 'My Profile',
+          subtitle: 'আপনার Profile দেখুন',
+          onTap: _openProfile,
+        ),
+
+        _menuCard(
+          icon: Icons.article_outlined,
+          title: 'My Posts',
+          subtitle: 'আপনার সব Post দেখুন',
+          onTap: _openProfile,
+        ),
+
+        _menuCard(
+          icon: Icons.settings_outlined,
+          title: 'Settings',
+          subtitle: 'Account ও Privacy settings',
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const SettingsScreen(),
+              ),
+            );
+          },
+        ),
+
+        _menuCard(
+          icon: Icons.help_outline,
+          title: 'Help & Support',
+          subtitle: 'সাহায্য এবং Support',
+          onTap: () {},
+        ),
+
+        _menuCard(
+          icon: Icons.info_outline,
+          title: 'About',
+          subtitle: 'বন্ধু সোশ্যাল সম্পর্কে',
+          onTap: () {
+            showAboutDialog(
+              context: context,
+              applicationName: 'বন্ধু সোশ্যাল',
+              applicationVersion: '1.0.0',
+            );
+          },
+        ),
+
+        const SizedBox(height: 12),
+
+        Card(
+          child: ListTile(
+            leading: const Icon(
+              Icons.logout_rounded,
+              color: Colors.red,
+            ),
+            title: const Text(
+              'Logout',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            onTap: _logout,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _menuCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: Colors.blue.shade50,
+          child: Icon(
+            icon,
+            color: Colors.blue,
+          ),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(subtitle),
+        trailing: const Icon(
+          Icons.chevron_right,
+        ),
+        onTap: onTap,
       ),
     );
   }
@@ -304,9 +504,11 @@ class CreatePostSheet extends StatefulWidget {
 }
 
 class _CreatePostSheetState extends State<CreatePostSheet> {
-  final TextEditingController _controller = TextEditingController();
+  final TextEditingController _controller =
+      TextEditingController();
 
-  final DataService _dataService = DataService.instance;
+  final DataService _dataService =
+      DataService.instance;
 
   bool _loading = false;
 
@@ -343,7 +545,9 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Post সফলভাবে প্রকাশ হয়েছে।'),
+          content: Text(
+            'Post সফলভাবে প্রকাশ হয়েছে।',
+          ),
         ),
       );
     } catch (error) {
@@ -372,7 +576,8 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
         left: 16,
         right: 16,
         top: 8,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        bottom:
+            MediaQuery.of(context).viewInsets.bottom + 16,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -391,7 +596,9 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
               IconButton(
                 onPressed: _loading
                     ? null
-                    : () => Navigator.of(context).pop(),
+                    : () {
+                        Navigator.of(context).pop();
+                      },
                 icon: const Icon(Icons.close),
               ),
             ],
@@ -402,27 +609,23 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
           Row(
             children: [
               CircleAvatar(
-                radius: 24,
                 backgroundColor: Colors.blue.shade100,
                 child: const Icon(
                   Icons.person,
                   color: Colors.blue,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  user?.displayName ?? 'বন্ধু',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+              const SizedBox(width: 10),
+              Text(
+                user?.displayName ?? 'বন্ধু',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 15),
 
           TextField(
             controller: _controller,
@@ -445,8 +648,10 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
           SizedBox(
             width: double.infinity,
             height: 50,
-            child: ElevatedButton(
-              onPressed: _loading ? null : _createPost,
+            child: FilledButton(
+              onPressed: _loading
+                  ? null
+                  : _createPost,
               child: _loading
                   ? const SizedBox(
                       width: 23,
@@ -485,12 +690,16 @@ class PostCard extends StatelessWidget {
     required this.dataService,
   });
 
-  Future<void> _deletePost(BuildContext context) async {
+  Future<void> _deletePost(
+    BuildContext context,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Post মুছে ফেলবেন?'),
+          title: const Text(
+            'Post মুছে ফেলবেন?',
+          ),
           content: const Text(
             'এই Post স্থায়ীভাবে মুছে যাবে।',
           ),
@@ -521,7 +730,9 @@ class PostCard extends StatelessWidget {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Post মুছে ফেলা হয়েছে।'),
+          content: Text(
+            'Post মুছে ফেলা হয়েছে।',
+          ),
         ),
       );
     } catch (error) {
@@ -539,13 +750,17 @@ class PostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = post.data() ?? {};
 
-    final userId = data['userId'] as String? ?? '';
+    final userId =
+        data['userId'] as String? ?? '';
+
     final userName =
         data['userName'] as String? ?? 'বন্ধু';
 
-    final text = data['text'] as String? ?? '';
+    final text =
+        data['text'] as String? ?? '';
 
-    final imageUrl = data['imageUrl'] as String?;
+    final imageUrl =
+        data['imageUrl'] as String?;
 
     final createdAt =
         data['createdAt'] as Timestamp?;
@@ -560,176 +775,158 @@ class PostCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: Colors.blue.shade100,
-                  child: const Icon(
-                    Icons.person,
-                    color: Colors.blue,
-                  ),
-                ),
-
-                const SizedBox(width: 10),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        userName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _formatDate(createdAt),
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                if (isOwner)
-                  PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'delete') {
-                        _deletePost(context);
-                      }
-                    },
-                    itemBuilder: (context) {
-                      return const [
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.delete_outline,
-                                color: Colors.red,
-                              ),
-                              SizedBox(width: 10),
-                              Text('Delete'),
-                            ],
-                          ),
-                        ),
-                      ];
-                    },
-                  ),
-              ],
-            ),
-
-            const SizedBox(height: 14),
-
-            if (text.isNotEmpty)
-              Text(
-                text,
-                style: const TextStyle(
-                  fontSize: 16,
-                  height: 1.45,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor:
+                    Colors.blue.shade100,
+                child: const Icon(
+                  Icons.person,
+                  color: Colors.blue,
                 ),
               ),
 
-            if (imageUrl != null &&
-                imageUrl.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.network(
-                  imageUrl,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder:
-                      (context, error, stackTrace) {
-                    return Container(
-                      height: 180,
-                      color: Colors.grey.shade200,
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.broken_image_outlined,
-                        size: 50,
+              const SizedBox(width: 10),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      userName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatDate(createdAt),
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (isOwner)
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      _deletePost(context);
+                    }
+                  },
+                  itemBuilder: (context) {
+                    return const [
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete'),
+                      ),
+                    ];
+                  },
+                ),
+            ],
+          ),
+
+          if (text.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              text,
+              style: const TextStyle(
+                fontSize: 16,
+                height: 1.45,
+              ),
+            ),
+          ],
+
+          if (imageUrl != null &&
+              imageUrl.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius:
+                  BorderRadius.circular(10),
+              child: Image.network(
+                imageUrl,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder:
+                    (context, error, stackTrace) {
+                  return Container(
+                    height: 180,
+                    color: Colors.grey.shade200,
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.broken_image_outlined,
+                      size: 50,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 12),
+
+          const Divider(),
+
+          Row(
+            children: [
+              Expanded(
+                child: _LikeButton(
+                  postId: post.id,
+                  dataService: dataService,
+                ),
+              ),
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      showDragHandle: true,
+                      builder: (_) =>
+                          CommentsSheet(
+                        postId: post.id,
+                        dataService: dataService,
                       ),
                     );
                   },
+                  icon: const Icon(
+                    Icons.comment_outlined,
+                  ),
+                  label: const Text('Comment'),
+                ),
+              ),
+              Expanded(
+                child: _ShareButton(
+                  postId: post.id,
+                  dataService: dataService,
                 ),
               ),
             ],
-
-            const SizedBox(height: 14),
-
-            const Divider(height: 1),
-
-            const SizedBox(height: 6),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _LikeButton(
-                    postId: post.id,
-                    dataService: dataService,
-                  ),
-                ),
-
-                Expanded(
-                  child: TextButton.icon(
-                    onPressed: () {
-                      _showComments(context);
-                    },
-                    icon: const Icon(
-                      Icons.comment_outlined,
-                    ),
-                    label: const Text('Comment'),
-                  ),
-                ),
-
-                Expanded(
-                  child: _ShareButton(
-                    postId: post.id,
-                    dataService: dataService,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  void _showComments(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) {
-        return CommentsSheet(
-          postId: post.id,
-          dataService: dataService,
-        );
-      },
-    );
-  }
-
-  static String _formatDate(Timestamp? timestamp) {
+  static String _formatDate(
+    Timestamp? timestamp,
+  ) {
     if (timestamp == null) {
       return 'এইমাত্র';
     }
 
     final date = timestamp.toDate();
-    final now = DateTime.now();
-
-    final difference = now.difference(date);
+    final difference =
+        DateTime.now().difference(date);
 
     if (difference.inMinutes < 1) {
       return 'এইমাত্র';
@@ -753,7 +950,7 @@ class PostCard extends StatelessWidget {
 
 
 // ============================================================
-// LIKE BUTTON
+// LIKE
 // ============================================================
 
 class _LikeButton extends StatelessWidget {
@@ -768,21 +965,27 @@ class _LikeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<bool>(
-      stream: dataService.likeStatusStream(postId),
+      stream:
+          dataService.likeStatusStream(postId),
       builder: (context, snapshot) {
-        final liked = snapshot.data ?? false;
+        final liked =
+            snapshot.data ?? false;
 
         return TextButton.icon(
           onPressed: () async {
             try {
-              await dataService.likePost(postId);
+              await dataService.likePost(
+                postId,
+              );
             } catch (error) {
               if (!context.mounted) return;
 
               ScaffoldMessenger.of(context)
                   .showSnackBar(
                 SnackBar(
-                  content: Text(error.toString()),
+                  content: Text(
+                    error.toString(),
+                  ),
                 ),
               );
             }
@@ -791,7 +994,8 @@ class _LikeButton extends StatelessWidget {
             liked
                 ? Icons.favorite
                 : Icons.favorite_border,
-            color: liked ? Colors.red : null,
+            color:
+                liked ? Colors.red : null,
           ),
           label: Text(
             liked ? 'Liked' : 'Like',
@@ -804,7 +1008,7 @@ class _LikeButton extends StatelessWidget {
 
 
 // ============================================================
-// SHARE BUTTON
+// SHARE
 // ============================================================
 
 class _ShareButton extends StatelessWidget {
@@ -819,21 +1023,27 @@ class _ShareButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<bool>(
-      stream: dataService.shareStatusStream(postId),
+      stream:
+          dataService.shareStatusStream(postId),
       builder: (context, snapshot) {
-        final shared = snapshot.data ?? false;
+        final shared =
+            snapshot.data ?? false;
 
         return TextButton.icon(
           onPressed: () async {
             try {
-              await dataService.sharePost(postId);
+              await dataService.sharePost(
+                postId,
+              );
             } catch (error) {
               if (!context.mounted) return;
 
               ScaffoldMessenger.of(context)
                   .showSnackBar(
                 SnackBar(
-                  content: Text(error.toString()),
+                  content: Text(
+                    error.toString(),
+                  ),
                 ),
               );
             }
@@ -886,7 +1096,8 @@ class _CommentsSheetState
   }
 
   Future<void> _sendComment() async {
-    final text = _controller.text.trim();
+    final text =
+        _controller.text.trim();
 
     if (text.isEmpty) return;
 
@@ -904,9 +1115,12 @@ class _CommentsSheetState
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
-          content: Text(error.toString()),
+          content: Text(
+            error.toString(),
+          ),
         ),
       );
     } finally {
@@ -922,7 +1136,9 @@ class _CommentsSheetState
   Widget build(BuildContext context) {
     return SafeArea(
       child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.75,
+        height:
+            MediaQuery.of(context).size.height *
+                0.75,
         child: Column(
           children: [
             const Padding(
@@ -940,19 +1156,24 @@ class _CommentsSheetState
 
             Expanded(
               child: StreamBuilder<
-                  QuerySnapshot<Map<String, dynamic>>>(
+                  QuerySnapshot<
+                      Map<String, dynamic>>>(
                 stream: widget.dataService
-                    .commentsStream(widget.postId),
-                builder: (context, snapshot) {
+                    .commentsStream(
+                  widget.postId,
+                ),
+                builder:
+                    (context, snapshot) {
                   if (snapshot.connectionState ==
                       ConnectionState.waiting) {
                     return const Center(
-                      child: CircularProgressIndicator(),
+                      child:
+                          CircularProgressIndicator(),
                     );
                   }
 
                   if (snapshot.hasError) {
-                    return Center(
+                    return const Center(
                       child: Text(
                         'Comment লোড করা যায়নি।',
                       ),
@@ -960,7 +1181,8 @@ class _CommentsSheetState
                   }
 
                   final comments =
-                      snapshot.data?.docs ?? [];
+                      snapshot.data?.docs ??
+                          [];
 
                   if (comments.isEmpty) {
                     return const Center(
@@ -971,30 +1193,40 @@ class _CommentsSheetState
                   }
 
                   return ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: comments.length,
-                    itemBuilder: (context, index) {
+                    padding:
+                        const EdgeInsets.all(12),
+                    itemCount:
+                        comments.length,
+                    itemBuilder:
+                        (context, index) {
                       final comment =
-                          comments[index].data();
+                          comments[index]
+                              .data();
 
                       return ListTile(
-                        leading: CircleAvatar(
+                        leading:
+                            CircleAvatar(
                           backgroundColor:
-                              Colors.blue.shade100,
+                              Colors.blue
+                                  .shade100,
                           child: const Icon(
                             Icons.person,
-                            color: Colors.blue,
+                            color:
+                                Colors.blue,
                           ),
                         ),
                         title: Text(
                           comment['userName'] ??
                               'বন্ধু',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
+                          style:
+                              const TextStyle(
+                            fontWeight:
+                                FontWeight.bold,
                           ),
                         ),
                         subtitle: Text(
-                          comment['text'] ?? '',
+                          comment['text'] ??
+                              '',
                         ),
                       );
                     },
@@ -1004,42 +1236,42 @@ class _CommentsSheetState
             ),
 
             Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    blurRadius: 5,
-                    color: Colors.black12,
-                  ),
-                ],
-              ),
+              padding:
+                  const EdgeInsets.all(10),
               child: Row(
                 children: [
                   Expanded(
                     child: TextField(
-                      controller: _controller,
+                      controller:
+                          _controller,
                       textInputAction:
                           TextInputAction.send,
                       onSubmitted: (_) =>
                           _sendComment(),
-                      decoration: InputDecoration(
-                        hintText: 'Comment লিখুন...',
+                      decoration:
+                          InputDecoration(
+                        hintText:
+                            'Comment লিখুন...',
                         filled: true,
                         fillColor:
-                            Colors.grey.shade100,
-                        border: OutlineInputBorder(
+                            Colors.grey
+                                .shade100,
+                        border:
+                            OutlineInputBorder(
                           borderRadius:
-                              BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
+                              BorderRadius
+                                  .circular(24),
+                          borderSide:
+                              BorderSide.none,
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    onPressed:
-                        _sending ? null : _sendComment,
+                    onPressed: _sending
+                        ? null
+                        : _sendComment,
                     icon: _sending
                         ? const SizedBox(
                             width: 22,
