@@ -99,8 +99,8 @@ class _EarningsScreenState extends State<EarningsScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Text(
                   snapshot.error
-                          .toString()
-                          .replaceFirst('Exception: ', ''),
+                      .toString()
+                      .replaceFirst('Exception: ', ''),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -110,8 +110,10 @@ class _EarningsScreenState extends State<EarningsScreen> {
           final data = snapshot.data?.data() ?? {};
 
           final balance = data['balance'] ?? 0;
-          final totalEarned = data['totalEarned'] ?? 0;
-          final totalWithdrawn = data['totalWithdrawn'] ?? 0;
+          final totalEarned =
+              data['totalEarned'] ?? 0;
+          final totalWithdrawn =
+              data['totalWithdrawn'] ?? 0;
 
           return RefreshIndicator(
             onRefresh: _initializeWallet,
@@ -123,9 +125,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                   totalEarned: totalEarned,
                   totalWithdrawn: totalWithdrawn,
                 ),
-
                 const SizedBox(height: 20),
-
                 SizedBox(
                   height: 52,
                   child: ElevatedButton.icon(
@@ -142,9 +142,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 28),
-
                 const Text(
                   'Transaction History',
                   style: TextStyle(
@@ -152,9 +150,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 10),
-
                 _transactionList(),
               ],
             ),
@@ -179,18 +175,14 @@ class _EarningsScreenState extends State<EarningsScreen> {
               Icons.account_balance_wallet,
               size: 55,
             ),
-
             const SizedBox(height: 10),
-
             const Text(
               'Available Balance',
               style: TextStyle(
                 fontSize: 16,
               ),
             ),
-
             const SizedBox(height: 5),
-
             Text(
               _money(balance),
               style: const TextStyle(
@@ -198,9 +190,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const Divider(height: 30),
-
             Row(
               children: [
                 Expanded(
@@ -272,8 +262,8 @@ class _EarningsScreenState extends State<EarningsScreen> {
             padding: const EdgeInsets.all(16),
             child: Text(
               snapshot.error
-                      .toString()
-                      .replaceFirst('Exception: ', ''),
+                  .toString()
+                  .replaceFirst('Exception: ', ''),
             ),
           );
         }
@@ -296,7 +286,8 @@ class _EarningsScreenState extends State<EarningsScreen> {
         return ListView.builder(
           itemCount: docs.length,
           shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
+          physics:
+              const NeverScrollableScrollPhysics(),
           itemBuilder: (context, index) {
             final data = docs[index].data();
 
@@ -470,9 +461,20 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
           DocumentSnapshot<Map<String, dynamic>>>(
         stream: widget.earningsService.walletStream(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                snapshot.error
+                    .toString()
+                    .replaceFirst('Exception: ', ''),
+              ),
+            );
+          }
+
           final data = snapshot.data?.data() ?? {};
 
-          final balance = _balanceFromData(data);
+          final balance =
+              _balanceFromData(data);
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -502,9 +504,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
-
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -521,13 +521,13 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-
                         const SizedBox(height: 10),
-
                         TextFormField(
-                          controller: _amountController,
+                          controller:
+                              _amountController,
                           keyboardType:
-                              const TextInputType.numberWithOptions(
+                              const TextInputType
+                                  .numberWithOptions(
                             decimal: true,
                           ),
                           decoration:
@@ -535,7 +535,8 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                             labelText: 'Amount',
                             hintText: 'Minimum ৳100',
                             prefixText: '৳ ',
-                            border: OutlineInputBorder(),
+                            border:
+                                OutlineInputBorder(),
                           ),
                           validator: (value) {
                             if (value == null ||
@@ -563,9 +564,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                             return null;
                           },
                         ),
-
                         const SizedBox(height: 18),
-
                         const Text(
                           'Payment Method',
                           style: TextStyle(
@@ -573,14 +572,13 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-
                         const SizedBox(height: 8),
-
                         DropdownButtonFormField<String>(
-                          value: _method,
+                          initialValue: _method,
                           decoration:
                               const InputDecoration(
-                            border: OutlineInputBorder(),
+                            border:
+                                OutlineInputBorder(),
                           ),
                           items: const [
                             DropdownMenuItem(
@@ -608,18 +606,20 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                             });
                           },
                         ),
-
                         const SizedBox(height: 18),
-
                         TextFormField(
-                          controller: _accountController,
-                          keyboardType: TextInputType.phone,
+                          controller:
+                              _accountController,
+                          keyboardType:
+                              TextInputType.phone,
                           decoration:
                               const InputDecoration(
-                            labelText: 'Payment Account',
+                            labelText:
+                                'Payment Account',
                             hintText:
                                 'bKash/Nagad/Bank number',
-                            border: OutlineInputBorder(),
+                            border:
+                                OutlineInputBorder(),
                           ),
                           validator: (value) {
                             if (value == null ||
@@ -627,22 +627,23 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                               return 'Payment account দিন';
                             }
 
-                            if (value.trim().length < 5) {
+                            if (value.trim().length <
+                                5) {
                               return 'সঠিক account দিন';
                             }
 
                             return null;
                           },
                         ),
-
                         const SizedBox(height: 22),
-
                         SizedBox(
                           width: double.infinity,
                           height: 52,
                           child: ElevatedButton(
                             onPressed:
-                                _loading ? null : _withdraw,
+                                _loading
+                                    ? null
+                                    : _withdraw,
                             child: _loading
                                 ? const SizedBox(
                                     width: 24,
@@ -667,9 +668,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 25),
-
               const Text(
                 'Withdraw Requests',
                 style: TextStyle(
@@ -677,9 +676,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 10),
-
               _withdrawRequests(),
             ],
           );
@@ -691,8 +688,8 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
   Widget _withdrawRequests() {
     return StreamBuilder<
         QuerySnapshot<Map<String, dynamic>>>(
-      stream:
-          widget.earningsService.myWithdrawRequestsStream(),
+      stream: widget.earningsService
+          .myWithdrawRequestsStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
@@ -704,8 +701,8 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
         if (snapshot.hasError) {
           return Text(
             snapshot.error
-                    .toString()
-                    .replaceFirst('Exception: ', ''),
+                .toString()
+                .replaceFirst('Exception: ', ''),
           );
         }
 
@@ -731,6 +728,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
               const NeverScrollableScrollPhysics(),
           itemBuilder: (context, index) {
             final doc = docs[index];
+
             final data = doc.data();
 
             final amount = data['amount'] is num
@@ -741,12 +739,15 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                     0;
 
             final status =
-                data['status']?.toString() ?? 'pending';
+                data['status']?.toString() ??
+                    'pending';
 
             return Card(
               child: ListTile(
                 leading: const CircleAvatar(
-                  child: Icon(Icons.payments),
+                  child: Icon(
+                    Icons.payments,
+                  ),
                 ),
                 title: Text(
                   '৳${amount.toStringAsFixed(2)}',
@@ -761,7 +762,9 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
                     ? TextButton(
                         onPressed: () =>
                             _cancel(doc.id),
-                        child: const Text('Cancel'),
+                        child: const Text(
+                          'Cancel',
+                        ),
                       )
                     : null,
               ),
