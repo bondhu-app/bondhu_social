@@ -18,11 +18,14 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
   Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
+    await _dataService.currentUser == null
+        ? FirebaseAuth.instance.signOut()
+        : FirebaseAuth.instance.signOut();
   }
 
   void _openProfile() {
-    Navigator.of(context).push(
+    Navigator.push(
+      context,
       MaterialPageRoute(
         builder: (_) => const ProfileScreen(),
       ),
@@ -42,7 +45,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F2F5),
-
       appBar: AppBar(
         title: const Text(
           'বন্ধু সোশ্যাল',
@@ -53,18 +55,17 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Search',
             onPressed: () {},
             icon: const Icon(Icons.search_rounded),
           ),
           IconButton(
-            tooltip: 'Profile',
             onPressed: _openProfile,
-            icon: const Icon(Icons.account_circle_outlined),
+            icon: const Icon(
+              Icons.account_circle_outlined,
+            ),
           ),
         ],
       ),
-
       body: IndexedStack(
         index: _selectedIndex,
         children: [
@@ -74,7 +75,6 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildMenuPage(),
         ],
       ),
-
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
@@ -105,7 +105,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-
       floatingActionButton: _selectedIndex == 0
           ? FloatingActionButton.extended(
               onPressed: _openCreatePost,
@@ -115,10 +114,6 @@ class _HomeScreenState extends State<HomeScreen> {
           : null,
     );
   }
-
-  // ============================================================
-  // HOME FEED
-  // ============================================================
 
   Widget _buildHomeFeed() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -136,7 +131,8 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(),
           );
@@ -146,8 +142,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return RefreshIndicator(
           onRefresh: () async {
-            await Future<void>.delayed(
-              const Duration(milliseconds: 500),
+            await Future.delayed(
+              const Duration(milliseconds: 300),
             );
           },
           child: ListView(
@@ -182,13 +178,9 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
-          CircleAvatar(
+          const CircleAvatar(
             radius: 22,
-            backgroundColor: Colors.blue.shade100,
-            child: const Icon(
-              Icons.person,
-              color: Colors.blue,
-            ),
+            child: Icon(Icons.person),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -256,10 +248,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ============================================================
-  // FRIENDS
-  // ============================================================
-
   Widget _buildFriendsPage() {
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -271,11 +259,7 @@ class _HomeScreenState extends State<HomeScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 8),
-        const Text(
-          'আপনার বন্ধুদের এবং Friend Request এখানে দেখা যাবে।',
-        ),
-        const SizedBox(height: 25),
+        const SizedBox(height: 20),
         _menuCard(
           icon: Icons.person_add_alt_1,
           title: 'Friend Requests',
@@ -297,10 +281,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
-
-  // ============================================================
-  // NOTIFICATIONS
-  // ============================================================
 
   Widget _buildNotificationsPage() {
     return ListView(
@@ -330,7 +310,6 @@ class _HomeScreenState extends State<HomeScreen> {
               SizedBox(height: 15),
               Text(
                 'এখনও কোনো Notification নেই।',
-                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -338,10 +317,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
-
-  // ============================================================
-  // MENU
-  // ============================================================
 
   Widget _buildMenuPage() {
     final user = FirebaseAuth.instance.currentUser;
@@ -356,74 +331,48 @@ class _HomeScreenState extends State<HomeScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-
         const SizedBox(height: 16),
-
         Card(
           child: ListTile(
-            contentPadding: const EdgeInsets.all(12),
-            leading: CircleAvatar(
-              radius: 28,
-              backgroundColor: Colors.blue.shade100,
-              child: const Icon(
-                Icons.person,
-                size: 30,
-                color: Colors.blue,
-              ),
+            leading: const CircleAvatar(
+              child: Icon(Icons.person),
             ),
             title: Text(
               user?.displayName ?? 'বন্ধু',
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 17,
               ),
             ),
-            subtitle: Text(
-              user?.email ?? '',
-            ),
-            trailing: const Icon(
-              Icons.chevron_right,
-            ),
+            subtitle: Text(user?.email ?? ''),
+            trailing: const Icon(Icons.chevron_right),
             onTap: _openProfile,
           ),
         ),
-
         const SizedBox(height: 12),
-
         _menuCard(
           icon: Icons.person_outline,
           title: 'My Profile',
           subtitle: 'আপনার Profile দেখুন',
           onTap: _openProfile,
         ),
-
         _menuCard(
           icon: Icons.article_outlined,
           title: 'My Posts',
           subtitle: 'আপনার সব Post দেখুন',
           onTap: _openProfile,
         ),
-
         _menuCard(
           icon: Icons.settings_outlined,
           title: 'Settings',
           subtitle: 'Account ও Privacy settings',
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const SettingsScreen(),
-              ),
-            );
-          },
+          onTap: () {},
         ),
-
         _menuCard(
           icon: Icons.help_outline,
           title: 'Help & Support',
           subtitle: 'সাহায্য এবং Support',
           onTap: () {},
         ),
-
         _menuCard(
           icon: Icons.info_outline,
           title: 'About',
@@ -436,9 +385,7 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
         ),
-
         const SizedBox(height: 12),
-
         Card(
           child: ListTile(
             leading: const Icon(
@@ -482,15 +429,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         subtitle: Text(subtitle),
-        trailing: const Icon(
-          Icons.chevron_right,
-        ),
+        trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
       ),
     );
   }
 }
-
 
 // ============================================================
 // CREATE POST
@@ -500,15 +444,14 @@ class CreatePostSheet extends StatefulWidget {
   const CreatePostSheet({super.key});
 
   @override
-  State<CreatePostSheet> createState() => _CreatePostSheetState();
+  State<CreatePostSheet> createState() =>
+      _CreatePostSheetState();
 }
 
-class _CreatePostSheetState extends State<CreatePostSheet> {
-  final TextEditingController _controller =
-      TextEditingController();
-
-  final DataService _dataService =
-      DataService.instance;
+class _CreatePostSheetState
+    extends State<CreatePostSheet> {
+  final _controller = TextEditingController();
+  final _dataService = DataService.instance;
 
   bool _loading = false;
 
@@ -530,40 +473,30 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
       return;
     }
 
-    setState(() {
-      _loading = true;
-    });
+    setState(() => _loading = true);
 
     try {
-      await _dataService.createPost(
-        text: text,
-      );
+      await _dataService.createPost(text: text);
 
       if (!mounted) return;
 
-      Navigator.of(context).pop();
+      Navigator.pop(context);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Post সফলভাবে প্রকাশ হয়েছে।',
-          ),
+          content: Text('Post সফলভাবে প্রকাশ হয়েছে।'),
         ),
       );
     } catch (error) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString()),
-        ),
+        SnackBar(content: Text(error.toString())),
       );
     } finally {
-      if (!mounted) return;
-
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -596,24 +529,16 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
               IconButton(
                 onPressed: _loading
                     ? null
-                    : () {
-                        Navigator.of(context).pop();
-                      },
+                    : () => Navigator.pop(context),
                 icon: const Icon(Icons.close),
               ),
             ],
           ),
-
           const Divider(),
-
           Row(
             children: [
-              CircleAvatar(
-                backgroundColor: Colors.blue.shade100,
-                child: const Icon(
-                  Icons.person,
-                  color: Colors.blue,
-                ),
+              const CircleAvatar(
+                child: Icon(Icons.person),
               ),
               const SizedBox(width: 10),
               Text(
@@ -624,9 +549,7 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
               ),
             ],
           ),
-
           const SizedBox(height: 15),
-
           TextField(
             controller: _controller,
             maxLines: 6,
@@ -642,16 +565,12 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
               ),
             ),
           ),
-
           const SizedBox(height: 8),
-
           SizedBox(
             width: double.infinity,
             height: 50,
             child: FilledButton(
-              onPressed: _loading
-                  ? null
-                  : _createPost,
+              onPressed: _loading ? null : _createPost,
               child: _loading
                   ? const SizedBox(
                       width: 23,
@@ -675,7 +594,6 @@ class _CreatePostSheetState extends State<CreatePostSheet> {
   }
 }
 
-
 // ============================================================
 // POST CARD
 // ============================================================
@@ -690,35 +608,25 @@ class PostCard extends StatelessWidget {
     required this.dataService,
   });
 
-  Future<void> _deletePost(
-    BuildContext context,
-  ) async {
+  Future<void> _deletePost(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Post মুছে ফেলবেন?',
+      builder: (_) => AlertDialog(
+        title: const Text('Post মুছে ফেলবেন?'),
+        content: const Text(
+          'এই Post স্থায়ীভাবে মুছে যাবে।',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('না'),
           ),
-          content: const Text(
-            'এই Post স্থায়ীভাবে মুছে যাবে।',
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('মুছে ফেলুন'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(false);
-              },
-              child: const Text('না'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop(true);
-              },
-              child: const Text('মুছে ফেলুন'),
-            ),
-          ],
-        );
-      },
+        ],
+      ),
     );
 
     if (confirmed != true) return;
@@ -730,18 +638,14 @@ class PostCard extends StatelessWidget {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Post মুছে ফেলা হয়েছে।',
-          ),
+          content: Text('Post মুছে ফেলা হয়েছে।'),
         ),
       );
     } catch (error) {
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString()),
-        ),
+        SnackBar(content: Text(error.toString())),
       );
     }
   }
@@ -750,20 +654,21 @@ class PostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = post.data() ?? {};
 
-    final userId =
-        data['userId'] as String? ?? '';
-
+    final userId = data['userId'] as String? ?? '';
     final userName =
         data['userName'] as String? ?? 'বন্ধু';
+    final text = data['text'] as String? ?? '';
+    final imageUrl = data['imageUrl'] as String?;
+    final createdAt = data['createdAt'] as Timestamp?;
 
-    final text =
-        data['text'] as String? ?? '';
+    final likeCount =
+        (data['likeCount'] as num?)?.toInt() ?? 0;
 
-    final imageUrl =
-        data['imageUrl'] as String?;
+    final commentCount =
+        (data['commentCount'] as num?)?.toInt() ?? 0;
 
-    final createdAt =
-        data['createdAt'] as Timestamp?;
+    final shareCount =
+        (data['shareCount'] as num?)?.toInt() ?? 0;
 
     final currentUser =
         FirebaseAuth.instance.currentUser;
@@ -777,22 +682,14 @@ class PostCard extends StatelessWidget {
       color: Colors.white,
       padding: const EdgeInsets.all(14),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              CircleAvatar(
-                backgroundColor:
-                    Colors.blue.shade100,
-                child: const Icon(
-                  Icons.person,
-                  color: Colors.blue,
-                ),
+              const CircleAvatar(
+                child: Icon(Icons.person),
               ),
-
               const SizedBox(width: 10),
-
               Expanded(
                 child: Column(
                   crossAxisAlignment:
@@ -804,7 +701,6 @@ class PostCard extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 2),
                     Text(
                       _formatDate(createdAt),
                       style: TextStyle(
@@ -815,7 +711,6 @@ class PostCard extends StatelessWidget {
                   ],
                 ),
               ),
-
               if (isOwner)
                 PopupMenuButton<String>(
                   onSelected: (value) {
@@ -823,14 +718,12 @@ class PostCard extends StatelessWidget {
                       _deletePost(context);
                     }
                   },
-                  itemBuilder: (context) {
-                    return const [
-                      PopupMenuItem(
-                        value: 'delete',
-                        child: Text('Delete'),
-                      ),
-                    ];
-                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Delete'),
+                    ),
+                  ],
                 ),
             ],
           ),
@@ -850,31 +743,58 @@ class PostCard extends StatelessWidget {
               imageUrl.isNotEmpty) ...[
             const SizedBox(height: 12),
             ClipRRect(
-              borderRadius:
-                  BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(10),
               child: Image.network(
                 imageUrl,
                 width: double.infinity,
                 fit: BoxFit.cover,
-                errorBuilder:
-                    (context, error, stackTrace) {
-                  return Container(
-                    height: 180,
-                    color: Colors.grey.shade200,
-                    alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.broken_image_outlined,
-                      size: 50,
-                    ),
-                  );
-                },
+                errorBuilder: (_, __, ___) =>
+                    Container(
+                  height: 180,
+                  color: Colors.grey.shade200,
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.broken_image_outlined,
+                    size: 50,
+                  ),
+                ),
               ),
             ),
           ],
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+
+          // ======================================================
+          // COUNTS
+          // ======================================================
+
+          Row(
+            children: [
+              if (likeCount > 0) ...[
+                const Icon(
+                  Icons.favorite,
+                  size: 18,
+                  color: Colors.red,
+                ),
+                const SizedBox(width: 5),
+                Text('$likeCount'),
+              ],
+              const Spacer(),
+              if (commentCount > 0)
+                Text('$commentCount Comment'),
+              if (commentCount > 0 &&
+                  shareCount > 0)
+                const SizedBox(width: 12),
+              if (shareCount > 0)
+                Text('$shareCount Share'),
+            ],
+          ),
 
           const Divider(),
+
+          // ======================================================
+          // ACTION BUTTONS
+          // ======================================================
 
           Row(
             children: [
@@ -891,8 +811,7 @@ class PostCard extends StatelessWidget {
                       context: context,
                       isScrollControlled: true,
                       showDragHandle: true,
-                      builder: (_) =>
-                          CommentsSheet(
+                      builder: (_) => CommentsSheet(
                         postId: post.id,
                         dataService: dataService,
                       ),
@@ -901,7 +820,11 @@ class PostCard extends StatelessWidget {
                   icon: const Icon(
                     Icons.comment_outlined,
                   ),
-                  label: const Text('Comment'),
+                  label: Text(
+                    commentCount > 0
+                        ? 'Comment $commentCount'
+                        : 'Comment',
+                  ),
                 ),
               ),
               Expanded(
@@ -917,12 +840,8 @@ class PostCard extends StatelessWidget {
     );
   }
 
-  static String _formatDate(
-    Timestamp? timestamp,
-  ) {
-    if (timestamp == null) {
-      return 'এইমাত্র';
-    }
+  static String _formatDate(Timestamp? timestamp) {
+    if (timestamp == null) return 'এইমাত্র';
 
     final date = timestamp.toDate();
     final difference =
@@ -948,9 +867,8 @@ class PostCard extends StatelessWidget {
   }
 }
 
-
 // ============================================================
-// LIKE
+// LIKE BUTTON
 // ============================================================
 
 class _LikeButton extends StatelessWidget {
@@ -965,27 +883,20 @@ class _LikeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<bool>(
-      stream:
-          dataService.likeStatusStream(postId),
+      stream: dataService.likeStatusStream(postId),
       builder: (context, snapshot) {
-        final liked =
-            snapshot.data ?? false;
+        final liked = snapshot.data ?? false;
 
         return TextButton.icon(
           onPressed: () async {
             try {
-              await dataService.likePost(
-                postId,
-              );
+              await dataService.likePost(postId);
             } catch (error) {
               if (!context.mounted) return;
 
-              ScaffoldMessenger.of(context)
-                  .showSnackBar(
+              ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(
-                    error.toString(),
-                  ),
+                  content: Text(error.toString()),
                 ),
               );
             }
@@ -994,11 +905,15 @@ class _LikeButton extends StatelessWidget {
             liked
                 ? Icons.favorite
                 : Icons.favorite_border,
-            color:
-                liked ? Colors.red : null,
+            color: liked ? Colors.red : null,
           ),
           label: Text(
             liked ? 'Liked' : 'Like',
+            style: TextStyle(
+              color: liked ? Colors.red : null,
+              fontWeight:
+                  liked ? FontWeight.bold : null,
+            ),
           ),
         );
       },
@@ -1006,9 +921,8 @@ class _LikeButton extends StatelessWidget {
   }
 }
 
-
 // ============================================================
-// SHARE
+// SHARE BUTTON
 // ============================================================
 
 class _ShareButton extends StatelessWidget {
@@ -1023,38 +937,51 @@ class _ShareButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<bool>(
-      stream:
-          dataService.shareStatusStream(postId),
+      stream: dataService.shareStatusStream(postId),
       builder: (context, snapshot) {
-        final shared =
-            snapshot.data ?? false;
+        final shared = snapshot.data ?? false;
 
         return TextButton.icon(
           onPressed: () async {
             try {
-              await dataService.sharePost(
-                postId,
+              await dataService.sharePost(postId);
+
+              if (!context.mounted) return;
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    shared
+                        ? 'Share সরিয়ে দেওয়া হয়েছে।'
+                        : 'Post Share হয়েছে।',
+                  ),
+                  duration:
+                      const Duration(seconds: 1),
+                ),
               );
             } catch (error) {
               if (!context.mounted) return;
 
-              ScaffoldMessenger.of(context)
-                  .showSnackBar(
+              ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(
-                    error.toString(),
-                  ),
+                  content: Text(error.toString()),
                 ),
               );
             }
           },
           icon: Icon(
             shared
-                ? Icons.share
+                ? Icons.check_circle
                 : Icons.share_outlined,
+            color: shared ? Colors.green : null,
           ),
           label: Text(
             shared ? 'Shared' : 'Share',
+            style: TextStyle(
+              color: shared ? Colors.green : null,
+              fontWeight:
+                  shared ? FontWeight.bold : null,
+            ),
           ),
         );
       },
@@ -1062,9 +989,8 @@ class _ShareButton extends StatelessWidget {
   }
 }
 
-
 // ============================================================
-// COMMENTS
+// COMMENTS SHEET
 // ============================================================
 
 class CommentsSheet extends StatefulWidget {
@@ -1084,8 +1010,7 @@ class CommentsSheet extends StatefulWidget {
 
 class _CommentsSheetState
     extends State<CommentsSheet> {
-  final TextEditingController _controller =
-      TextEditingController();
+  final _controller = TextEditingController();
 
   bool _sending = false;
 
@@ -1096,14 +1021,11 @@ class _CommentsSheetState
   }
 
   Future<void> _sendComment() async {
-    final text =
-        _controller.text.trim();
+    final text = _controller.text.trim();
 
-    if (text.isEmpty) return;
+    if (text.isEmpty || _sending) return;
 
-    setState(() {
-      _sending = true;
-    });
+    setState(() => _sending = true);
 
     try {
       await widget.dataService.addComment(
@@ -1115,20 +1037,15 @@ class _CommentsSheetState
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            error.toString(),
-          ),
+          content: Text(error.toString()),
         ),
       );
     } finally {
-      if (!mounted) return;
-
-      setState(() {
-        _sending = false;
-      });
+      if (mounted) {
+        setState(() => _sending = false);
+      }
     }
   }
 
@@ -1136,9 +1053,7 @@ class _CommentsSheetState
   Widget build(BuildContext context) {
     return SafeArea(
       child: SizedBox(
-        height:
-            MediaQuery.of(context).size.height *
-                0.75,
+        height: MediaQuery.of(context).size.height * .75,
         child: Column(
           children: [
             const Padding(
@@ -1151,38 +1066,31 @@ class _CommentsSheetState
                 ),
               ),
             ),
-
             const Divider(height: 1),
-
             Expanded(
               child: StreamBuilder<
-                  QuerySnapshot<
-                      Map<String, dynamic>>>(
+                  QuerySnapshot<Map<String, dynamic>>>(
                 stream: widget.dataService
-                    .commentsStream(
-                  widget.postId,
-                ),
-                builder:
-                    (context, snapshot) {
+                    .commentsStream(widget.postId),
+                builder: (context, snapshot) {
                   if (snapshot.connectionState ==
                       ConnectionState.waiting) {
                     return const Center(
-                      child:
-                          CircularProgressIndicator(),
+                      child: CircularProgressIndicator(),
                     );
                   }
 
                   if (snapshot.hasError) {
-                    return const Center(
+                    return Center(
                       child: Text(
-                        'Comment লোড করা যায়নি।',
+                        'Comment লোড করা যায়নি।\n${snapshot.error}',
+                        textAlign: TextAlign.center,
                       ),
                     );
                   }
 
                   final comments =
-                      snapshot.data?.docs ??
-                          [];
+                      snapshot.data?.docs ?? [];
 
                   if (comments.isEmpty) {
                     return const Center(
@@ -1193,40 +1101,72 @@ class _CommentsSheetState
                   }
 
                   return ListView.builder(
-                    padding:
-                        const EdgeInsets.all(12),
-                    itemCount:
-                        comments.length,
-                    itemBuilder:
-                        (context, index) {
-                      final comment =
-                          comments[index]
-                              .data();
+                    padding: const EdgeInsets.all(12),
+                    itemCount: comments.length,
+                    itemBuilder: (context, index) {
+                      final doc = comments[index];
+                      final comment = doc.data();
 
-                      return ListTile(
-                        leading:
-                            CircleAvatar(
-                          backgroundColor:
-                              Colors.blue
-                                  .shade100,
-                          child: const Icon(
-                            Icons.person,
-                            color:
-                                Colors.blue,
-                          ),
+                      final currentUser =
+                          FirebaseAuth.instance.currentUser;
+
+                      final isMine =
+                          currentUser != null &&
+                          comment['userId'] ==
+                              currentUser.uid;
+
+                      return Card(
+                        margin: const EdgeInsets.only(
+                          bottom: 8,
                         ),
-                        title: Text(
-                          comment['userName'] ??
-                              'বন্ধু',
-                          style:
-                              const TextStyle(
-                            fontWeight:
-                                FontWeight.bold,
+                        child: ListTile(
+                          leading: const CircleAvatar(
+                            child: Icon(Icons.person),
                           ),
-                        ),
-                        subtitle: Text(
-                          comment['text'] ??
-                              '',
+                          title: Text(
+                            comment['userName'] ??
+                                'বন্ধু',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          subtitle: Text(
+                            comment['text'] ?? '',
+                          ),
+                          trailing: isMine
+                              ? IconButton(
+                                  onPressed: () async {
+                                    try {
+                                      await widget
+                                          .dataService
+                                          .deleteComment(
+                                        postId:
+                                            widget.postId,
+                                        commentId:
+                                            doc.id,
+                                      );
+                                    } catch (error) {
+                                      if (!context
+                                          .mounted) {
+                                        return;
+                                      }
+
+                                      ScaffoldMessenger
+                                              .of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            error.toString(),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                  ),
+                                )
+                              : null,
                         ),
                       );
                     },
@@ -1234,44 +1174,35 @@ class _CommentsSheetState
                 },
               ),
             ),
-
             Container(
-              padding:
-                  const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(10),
               child: Row(
                 children: [
                   Expanded(
                     child: TextField(
-                      controller:
-                          _controller,
+                      controller: _controller,
                       textInputAction:
                           TextInputAction.send,
                       onSubmitted: (_) =>
                           _sendComment(),
-                      decoration:
-                          InputDecoration(
+                      decoration: InputDecoration(
                         hintText:
                             'Comment লিখুন...',
                         filled: true,
                         fillColor:
-                            Colors.grey
-                                .shade100,
-                        border:
-                            OutlineInputBorder(
+                            Colors.grey.shade100,
+                        border: OutlineInputBorder(
                           borderRadius:
-                              BorderRadius
-                                  .circular(24),
-                          borderSide:
-                              BorderSide.none,
+                              BorderRadius.circular(24),
+                          borderSide: BorderSide.none,
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    onPressed: _sending
-                        ? null
-                        : _sendComment,
+                    onPressed:
+                        _sending ? null : _sendComment,
                     icon: _sending
                         ? const SizedBox(
                             width: 22,
