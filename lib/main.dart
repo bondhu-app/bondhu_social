@@ -6,7 +6,6 @@ import 'firebase_options.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
-import 'services/data_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,88 +43,75 @@ class BondhuSocialApp extends StatelessWidget {
   }
 }
 
-// ============================================================
-// AUTH GATE
-// ============================================================
-
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        // ----------------------------------------------------
-        // LOADING
-        // ----------------------------------------------------
-
+      stream:
+          FirebaseAuth.instance.authStateChanges(),
+      builder: (
+        context,
+        snapshot,
+      ) {
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
           return const SplashScreen();
         }
 
-        // ----------------------------------------------------
-        // ERROR
-        // ----------------------------------------------------
+        final user = snapshot.data;
 
-        if (snapshot.hasError) {
+        if (user == null) {
           return const LoginScreen();
         }
 
-        // ----------------------------------------------------
-        // USER NOT LOGGED IN
-        // ----------------------------------------------------
-
-        if (!snapshot.hasData ||
-            snapshot.data == null) {
-          return const LoginScreen();
-        }
-
-        // ----------------------------------------------------
-        // USER LOGGED IN
-        // ----------------------------------------------------
-
-        return const RoleGate();
+        return const UserRoleGate();
       },
     );
   }
 }
 
-// ============================================================
-// ROLE GATE
-// ============================================================
+class UserRoleGate extends StatelessWidget {
+  const UserRoleGate({super.key});
 
-class RoleGate extends StatelessWidget {
-  const RoleGate({super.key});
+  Future<bool> _isAdmin() async {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return false;
+    }
+
+    final document =
+        await FirebaseFirestoreHelper
+            .getUserDocument(user.uid);
+
+    if (!document.exists) {
+      return false;
+    }
+
+    final data = document.data();
+
+    return data?['role'] == 'admin';
+  }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<bool>(
-      future: DataService.instance.isAdmin(),
-      builder: (context, snapshot) {
-        // ----------------------------------------------------
-        // CHECKING ROLE
-        // ----------------------------------------------------
-
+      future: _isAdmin(),
+      builder: (
+        context,
+        snapshot,
+      ) {
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
-          return const SplashScreen(
-            message: 'Account যাচাই করা হচ্ছে...',
-          );
+          return const SplashScreen();
         }
-
-        // ----------------------------------------------------
-        // ADMIN
-        // ----------------------------------------------------
 
         if (snapshot.data == true) {
           return const AdminDashboardScreen();
         }
-
-        // ----------------------------------------------------
-        // NORMAL USER
-        // ----------------------------------------------------
 
         return const HomeScreen();
       },
@@ -133,56 +119,47 @@ class RoleGate extends StatelessWidget {
   }
 }
 
-// ============================================================
-// SPLASH SCREEN
-// ============================================================
+class FirebaseFirestoreHelper {
+  static Future<
+      DocumentSnapshot<Map<String, dynamic>>>
+      getUserDocument(
+    String uid,
+  ) async {
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+  }
+}
 
 class SplashScreen extends StatelessWidget {
-  final String message;
-
-  const SplashScreen({
-    super.key,
-    this.message = 'লোড হচ্ছে...',
-  });
+  const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return const Scaffold(
       backgroundColor: Colors.white,
       body: Center(
         child: Column(
           mainAxisAlignment:
               MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.people_alt_rounded,
               size: 85,
               color: Colors.blue,
             ),
-
-            const SizedBox(height: 20),
-
-            const Text(
+            SizedBox(height: 20),
+            Text(
               'বন্ধু সোশ্যাল',
               style: TextStyle(
                 fontSize: 30,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
-
-            const SizedBox(height: 25),
-
-            const CircularProgressIndicator(),
-
-            const SizedBox(height: 15),
-
-            Text(
-              message,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade700,
-              ),
-            ),
+            SizedBox(height: 25),
+            CircularProgressIndicator(),
           ],
         ),
       ),
