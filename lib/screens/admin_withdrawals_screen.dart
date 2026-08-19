@@ -119,8 +119,7 @@ class _AdminWithdrawScreenState
   Future<void> _approveRequest(
     String requestId,
   ) async {
-    final confirmed =
-        await _showConfirmDialog(
+    final confirmed = await _showConfirmDialog(
       title: 'Withdraw Approve',
       message:
           'আপনি কি এই withdraw request approve করতে চান?',
@@ -248,11 +247,6 @@ class _AdminWithdrawScreenState
           ownerData['balance'],
         );
 
-        // --------------------------------------------------------
-        // নিরাপত্তা:
-        // Owner wallet-এ টাকা না থাকলে approve হবে না।
-        // --------------------------------------------------------
-
         if (ownerBalance < amount) {
           throw Exception(
             'Owner wallet-এ পর্যাপ্ত টাকা নেই। '
@@ -266,7 +260,7 @@ class _AdminWithdrawScreenState
         );
 
         // --------------------------------------------------------
-        // Owner Wallet
+        // OWNER WALLET
         // --------------------------------------------------------
 
         transaction.set(
@@ -285,7 +279,7 @@ class _AdminWithdrawScreenState
         );
 
         // --------------------------------------------------------
-        // Withdraw Request
+        // WITHDRAW REQUEST
         // --------------------------------------------------------
 
         transaction.update(
@@ -303,7 +297,7 @@ class _AdminWithdrawScreenState
         );
 
         // --------------------------------------------------------
-        // Transaction History
+        // TRANSACTION HISTORY
         // --------------------------------------------------------
 
         final transactionRef =
@@ -482,7 +476,7 @@ class _AdminWithdrawScreenState
                 : 0.0;
 
         // --------------------------------------------------------
-        // টাকা User Wallet-এ ফেরত
+        // USER WALLET-এ টাকা ফেরত
         // --------------------------------------------------------
 
         transaction.set(
@@ -501,7 +495,7 @@ class _AdminWithdrawScreenState
         );
 
         // --------------------------------------------------------
-        // Withdraw Request
+        // WITHDRAW REQUEST
         // --------------------------------------------------------
 
         transaction.update(
@@ -522,7 +516,7 @@ class _AdminWithdrawScreenState
         );
 
         // --------------------------------------------------------
-        // Transaction History
+        // TRANSACTION HISTORY
         // --------------------------------------------------------
 
         final transactionQuery =
