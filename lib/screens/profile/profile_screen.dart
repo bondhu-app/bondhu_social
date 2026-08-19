@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
+import 'earnings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -86,6 +87,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _openEarnings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const EarningsScreen(),
+      ),
+    );
+  }
+
   void _showSettings() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -132,7 +141,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
-                  'Profile লোড করা যায়নি।\n\n${snapshot.error}',
+                  'Profile লোড করা যায়নি.\n\n${snapshot.error}',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -156,6 +165,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final photoUrl =
             data['photoUrl'] as String?;
 
+        final coverPhotoUrl =
+            data['coverPhotoUrl'] as String?;
+
         final followersCount =
             _numberValue(data['followersCount']);
 
@@ -175,6 +187,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             actions: [
+              IconButton(
+                tooltip: 'Earnings',
+                onPressed: _openEarnings,
+                icon: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                ),
+              ),
               IconButton(
                 tooltip: 'Settings',
                 onPressed: _showSettings,
@@ -201,6 +220,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   username: username,
                   bio: bio,
                   photoUrl: photoUrl,
+                  coverPhotoUrl: coverPhotoUrl,
                   followersCount: followersCount,
                   followingCount: followingCount,
                   friendsCount: friendsCount,
@@ -209,6 +229,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 8),
 
                 _buildProfileActions(data),
+
+                const SizedBox(height: 8),
+
+                _buildEarningsCard(),
 
                 const SizedBox(height: 8),
 
@@ -263,6 +287,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String username,
     required String bio,
     required String? photoUrl,
+    required String? coverPhotoUrl,
     required int followersCount,
     required int followingCount,
     required int friendsCount,
@@ -271,18 +296,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
       color: Colors.white,
       child: Column(
         children: [
-          Container(
-            height: 130,
+          SizedBox(
+            height: 170,
             width: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.blue.shade700,
-                  Colors.blue.shade300,
-                ],
-              ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (coverPhotoUrl != null &&
+                    coverPhotoUrl.isNotEmpty)
+                  Image.network(
+                    coverPhotoUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder:
+                        (context, error, stackTrace) {
+                      return _defaultCover();
+                    },
+                  )
+                else
+                  _defaultCover(),
+              ],
             ),
           ),
 
@@ -291,11 +323,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               children: [
                 CircleAvatar(
-                  radius: 55,
+                  radius: 58,
                   backgroundColor: Colors.white,
                   child: CircleAvatar(
-                    radius: 51,
-                    backgroundColor: Colors.blue.shade100,
+                    radius: 53,
+                    backgroundColor:
+                        Colors.blue.shade100,
                     backgroundImage:
                         photoUrl != null &&
                                 photoUrl.isNotEmpty
@@ -390,6 +423,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _defaultCover() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.blue.shade700,
+            Colors.blue.shade300,
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildProfileActions(
     Map<String, dynamic> data,
   ) {
@@ -413,16 +461,95 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(width: 10),
           IconButton(
+            tooltip: 'Earnings',
+            onPressed: _openEarnings,
+            style: IconButton.styleFrom(
+              backgroundColor:
+                  Colors.green.shade50,
+            ),
+            icon: Icon(
+              Icons.account_balance_wallet_outlined,
+              color: Colors.green.shade700,
+            ),
+          ),
+          const SizedBox(width: 5),
+          IconButton(
             tooltip: 'Settings',
             onPressed: _showSettings,
             style: IconButton.styleFrom(
-              backgroundColor: Colors.grey.shade100,
+              backgroundColor:
+                  Colors.grey.shade100,
             ),
             icon: const Icon(
               Icons.settings_outlined,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEarningsCard() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.all(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: _openEarnings,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            gradient: LinearGradient(
+              colors: [
+                Colors.green.shade700,
+                Colors.green.shade400,
+              ],
+            ),
+          ),
+          child: const Row(
+            children: [
+              CircleAvatar(
+                radius: 25,
+                backgroundColor: Colors.white24,
+                child: Icon(
+                  Icons.account_balance_wallet,
+                  color: Colors.white,
+                ),
+              ),
+              SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Earnings & Wallet',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'আপনার আয়, Wallet এবং Withdraw দেখুন',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.white,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -482,7 +609,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         }
 
-        final posts = snapshot.data?.docs ?? [];
+        final posts =
+            snapshot.data?.docs ?? [];
 
         if (posts.isEmpty) {
           return Container(
@@ -520,6 +648,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             final timestamp =
                 data['createdAt'] as Timestamp?;
+
+            final likeCount =
+                _numberValue(data['likeCount']);
+
+            final commentCount =
+                _numberValue(
+              data['commentCount'],
+            );
+
+            final shareCount =
+                _numberValue(
+              data['shareCount'],
+            );
 
             return Container(
               color: Colors.white,
@@ -585,9 +726,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         imageUrl,
                         width: double.infinity,
                         fit: BoxFit.cover,
+                        errorBuilder:
+                            (context, error,
+                                stackTrace) {
+                          return Container(
+                            height: 180,
+                            color: Colors.grey.shade200,
+                            alignment:
+                                Alignment.center,
+                            child: const Icon(
+                              Icons.broken_image,
+                              size: 50,
+                              color: Colors.grey,
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ],
+
+                  const SizedBox(height: 14),
+
+                  Row(
+                    children: [
+                      _PostCount(
+                        icon: Icons.favorite_border,
+                        count: likeCount,
+                      ),
+                      const SizedBox(width: 20),
+                      _PostCount(
+                        icon:
+                            Icons.comment_outlined,
+                        count: commentCount,
+                      ),
+                      const SizedBox(width: 20),
+                      _PostCount(
+                        icon: Icons.share_outlined,
+                        count: shareCount,
+                      ),
+                    ],
+                  ),
                 ],
               ),
             );
@@ -631,6 +809,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+// ============================================================
+// POST COUNT
+// ============================================================
+
+class _PostCount extends StatelessWidget {
+  final IconData icon;
+  final int count;
+
+  const _PostCount({
+    required this.icon,
+    required this.count,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          size: 19,
+          color: Colors.grey.shade600,
+        ),
+        const SizedBox(width: 5),
+        Text(
+          count.toString(),
+          style: TextStyle(
+            color: Colors.grey.shade700,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 // ============================================================
 // PROFILE STAT
@@ -669,7 +882,6 @@ class _ProfileStat extends StatelessWidget {
   }
 }
 
-
 // ============================================================
 // EDIT PROFILE
 // ============================================================
@@ -693,7 +905,8 @@ class _EditProfileScreenState
       AuthService.instance;
 
   late final TextEditingController _nameController;
-  late final TextEditingController _usernameController;
+  late final TextEditingController
+      _usernameController;
   late final TextEditingController _bioController;
   late final TextEditingController _phoneController;
 
@@ -707,7 +920,8 @@ class _EditProfileScreenState
       text: widget.userData['name'] ?? '',
     );
 
-    _usernameController = TextEditingController(
+    _usernameController =
+        TextEditingController(
       text: widget.userData['username'] ?? '',
     );
 
@@ -730,7 +944,8 @@ class _EditProfileScreenState
   }
 
   Future<void> _saveProfile() async {
-    final name = _nameController.text.trim();
+    final name =
+        _nameController.text.trim();
 
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -748,7 +963,8 @@ class _EditProfileScreenState
     try {
       await _authService.updateProfile(
         name: name,
-        username: _usernameController.text.trim(),
+        username:
+            _usernameController.text.trim(),
         bio: _bioController.text.trim(),
         phone: _phoneController.text.trim(),
       );
@@ -770,7 +986,8 @@ class _EditProfileScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _authService.getAuthErrorMessage(error),
+            _authService
+                .getAuthErrorMessage(error),
           ),
         ),
       );
@@ -800,7 +1017,8 @@ class _EditProfileScreenState
           children: [
             CircleAvatar(
               radius: 48,
-              backgroundColor: Colors.blue.shade100,
+              backgroundColor:
+                  Colors.blue.shade100,
               child: const Icon(
                 Icons.person,
                 size: 50,
@@ -833,8 +1051,10 @@ class _EditProfileScreenState
 
             TextField(
               controller: _nameController,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
+              textInputAction:
+                  TextInputAction.next,
+              decoration:
+                  const InputDecoration(
                 labelText: 'নাম',
                 prefixIcon: Icon(
                   Icons.person_outline,
@@ -845,11 +1065,15 @@ class _EditProfileScreenState
             const SizedBox(height: 14),
 
             TextField(
-              controller: _usernameController,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
+              controller:
+                  _usernameController,
+              textInputAction:
+                  TextInputAction.next,
+              decoration:
+                  const InputDecoration(
                 labelText: 'Username',
-                hintText: 'যেমন: mojidul123',
+                hintText:
+                    'যেমন: mojidul123',
                 prefixIcon: Icon(
                   Icons.alternate_email,
                 ),
@@ -862,9 +1086,11 @@ class _EditProfileScreenState
               controller: _bioController,
               maxLines: 4,
               maxLength: 160,
-              decoration: const InputDecoration(
+              decoration:
+                  const InputDecoration(
                 labelText: 'Bio',
-                hintText: 'নিজের সম্পর্কে কিছু লিখুন...',
+                hintText:
+                    'নিজের সম্পর্কে কিছু লিখুন...',
                 prefixIcon: Icon(
                   Icons.info_outline,
                 ),
@@ -876,9 +1102,12 @@ class _EditProfileScreenState
 
             TextField(
               controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'মোবাইল নম্বর',
+              keyboardType:
+                  TextInputType.phone,
+              decoration:
+                  const InputDecoration(
+                labelText:
+                    'মোবাইল নম্বর',
                 prefixIcon: Icon(
                   Icons.phone_outlined,
                 ),
@@ -892,7 +1121,9 @@ class _EditProfileScreenState
               height: 52,
               child: FilledButton(
                 onPressed:
-                    _saving ? null : _saveProfile,
+                    _saving
+                        ? null
+                        : _saveProfile,
                 child: _saving
                     ? const SizedBox(
                         width: 24,
@@ -906,7 +1137,8 @@ class _EditProfileScreenState
                         'Save Changes',
                         style: TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                          fontWeight:
+                              FontWeight.bold,
                         ),
                       ),
               ),
@@ -917,7 +1149,6 @@ class _EditProfileScreenState
     );
   }
 }
-
 
 // ============================================================
 // SETTINGS
@@ -1059,8 +1290,10 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () {
                   showAboutDialog(
                     context: context,
-                    applicationName: 'বন্ধু সোশ্যাল',
-                    applicationVersion: '1.0.0',
+                    applicationName:
+                        'বন্ধু সোশ্যাল',
+                    applicationVersion:
+                        '1.0.0',
                     applicationLegalese:
                         '© বন্ধু সোশ্যাল',
                   );
@@ -1087,7 +1320,6 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-
 // ============================================================
 // SETTINGS SECTION
 // ============================================================
@@ -1106,10 +1338,12 @@ class _SettingsSection extends StatelessWidget {
     return Container(
       color: Colors.white,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(
+            padding:
+                const EdgeInsets.fromLTRB(
               16,
               16,
               16,
@@ -1119,7 +1353,8 @@ class _SettingsSection extends StatelessWidget {
               title,
               style: TextStyle(
                 color: Colors.blue.shade700,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                    FontWeight.bold,
                 fontSize: 14,
               ),
             ),
