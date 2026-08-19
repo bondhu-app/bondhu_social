@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
+import '../home/home_screen.dart';
 import 'forgot_password_screen.dart';
 import 'signup_screen.dart';
 
@@ -13,13 +14,14 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
+
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  final AuthService _authService = AuthService.instance;
+
   bool _isLoading = false;
   bool _obscurePassword = true;
-
-  final AuthService _authService = AuthService.instance;
 
   @override
   void dispose() {
@@ -27,6 +29,10 @@ class _LoginScreenState extends State<LoginScreen> {
     _passwordController.dispose();
     super.dispose();
   }
+
+  // ============================================================
+  // LOGIN
+  // ============================================================
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) {
@@ -41,19 +47,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await _authService.signIn(
-        email: _emailController.text,
+        email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('লগইন সফল হয়েছে।'),
+      // Login সফল হলে সরাসরি Home Screen
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => const HomeScreen(),
         ),
+        (route) => false,
       );
-
-      // Home screen আমরা পরের ধাপে তৈরি করব।
     } catch (error) {
       if (!mounted) return;
 
@@ -62,6 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
           content: Text(
             _authService.getAuthErrorMessage(error),
           ),
+          behavior: SnackBarBehavior.floating,
         ),
       );
     } finally {
@@ -72,6 +79,10 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     }
   }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -89,22 +100,28 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Form(
                 key: _formKey,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 20),
 
-                    // Logo
-                    Container(
-                      width: 86,
-                      height: 86,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.people_alt_rounded,
-                        color: Colors.white,
-                        size: 48,
+                    // ==================================================
+                    // LOGO
+                    // ==================================================
+
+                    Center(
+                      child: Container(
+                        width: 86,
+                        height: 86,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.people_alt_rounded,
+                          color: Colors.white,
+                          size: 48,
+                        ),
                       ),
                     ),
 
@@ -132,19 +149,31 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 32),
 
+                    // ==================================================
+                    // EMAIL
+                    // ==================================================
+
                     TextFormField(
                       controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
+                      keyboardType:
+                          TextInputType.emailAddress,
+                      textInputAction:
+                          TextInputAction.next,
                       autocorrect: false,
+                      enabled: !_isLoading,
                       decoration: const InputDecoration(
                         labelText: 'ইমেইল',
-                        hintText: 'আপনার ইমেইল লিখুন',
-                        prefixIcon: Icon(Icons.email_outlined),
-                        border: OutlineInputBorder(),
+                        hintText:
+                            'আপনার ইমেইল লিখুন',
+                        prefixIcon: Icon(
+                          Icons.email_outlined,
+                        ),
+                        border:
+                            OutlineInputBorder(),
                       ),
                       validator: (value) {
-                        final email = value?.trim() ?? '';
+                        final email =
+                            value?.trim() ?? '';
 
                         if (email.isEmpty) {
                           return 'ইমেইল লিখুন';
@@ -161,33 +190,53 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 16),
 
+                    // ==================================================
+                    // PASSWORD
+                    // ==================================================
+
                     TextFormField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _login(),
+                      controller:
+                          _passwordController,
+                      obscureText:
+                          _obscurePassword,
+                      textInputAction:
+                          TextInputAction.done,
+                      enabled: !_isLoading,
+                      onFieldSubmitted: (_) {
+                        if (!_isLoading) {
+                          _login();
+                        }
+                      },
                       decoration: InputDecoration(
                         labelText: 'পাসওয়ার্ড',
-                        hintText: 'আপনার পাসওয়ার্ড লিখুন',
+                        hintText:
+                            'আপনার পাসওয়ার্ড লিখুন',
                         prefixIcon: const Icon(
                           Icons.lock_outline,
                         ),
                         suffixIcon: IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _obscurePassword = !_obscurePassword;
-                            });
-                          },
+                          onPressed: _isLoading
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _obscurePassword =
+                                        !_obscurePassword;
+                                  });
+                                },
                           icon: Icon(
                             _obscurePassword
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
+                                ? Icons
+                                    .visibility_outlined
+                                : Icons
+                                    .visibility_off_outlined,
                           ),
                         ),
-                        border: const OutlineInputBorder(),
+                        border:
+                            const OutlineInputBorder(),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
+                        if (value == null ||
+                            value.isEmpty) {
                           return 'পাসওয়ার্ড লিখুন';
                         }
 
@@ -197,14 +246,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 8),
 
+                    // ==================================================
+                    // FORGOT PASSWORD
+                    // ==================================================
+
                     Align(
-                      alignment: Alignment.centerRight,
+                      alignment:
+                          Alignment.centerRight,
                       child: TextButton(
                         onPressed: _isLoading
                             ? null
                             : () {
-                                Navigator.push(
-                                  context,
+                                Navigator.of(context)
+                                    .push(
                                   MaterialPageRoute(
                                     builder: (_) =>
                                         const ForgotPasswordScreen(),
@@ -219,23 +273,34 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 16),
 
+                    // ==================================================
+                    // LOGIN BUTTON
+                    // ==================================================
+
                     SizedBox(
                       height: 52,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : _login,
+                        onPressed:
+                            _isLoading
+                                ? null
+                                : _login,
                         child: _isLoading
                             ? const SizedBox(
                                 width: 24,
                                 height: 24,
-                                child: CircularProgressIndicator(
+                                child:
+                                    CircularProgressIndicator(
                                   strokeWidth: 2.5,
+                                  color:
+                                      Colors.white,
                                 ),
                               )
                             : const Text(
                                 'লগইন',
                                 style: TextStyle(
                                   fontSize: 17,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight:
+                                      FontWeight.bold,
                                 ),
                               ),
                       ),
@@ -243,27 +308,36 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 20),
 
+                    // ==================================================
+                    // OR
+                    // ==================================================
+
                     Row(
                       children: [
                         Expanded(
                           child: Divider(
-                            color: Colors.grey.shade400,
+                            color:
+                                Colors.grey.shade400,
                           ),
                         ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(
+                          padding:
+                              const EdgeInsets
+                                  .symmetric(
                             horizontal: 12,
                           ),
                           child: Text(
                             'অথবা',
                             style: TextStyle(
-                              color: Colors.grey.shade600,
+                              color:
+                                  Colors.grey.shade600,
                             ),
                           ),
                         ),
                         Expanded(
                           child: Divider(
-                            color: Colors.grey.shade400,
+                            color:
+                                Colors.grey.shade400,
                           ),
                         ),
                       ],
@@ -271,27 +345,40 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 20),
 
+                    // ==================================================
+                    // GOOGLE LOGIN
+                    // ==================================================
+
                     OutlinedButton.icon(
                       onPressed: _isLoading
                           ? null
                           : () {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              ScaffoldMessenger
+                                      .of(context)
+                                  .showSnackBar(
                                 const SnackBar(
                                   content: Text(
                                     'Google Login পরের ধাপে চালু করা হবে।',
                                   ),
+                                  behavior:
+                                      SnackBarBehavior
+                                          .floating,
                                 ),
                               );
                             },
-                      icon: const Icon(Icons.g_mobiledata_rounded),
+                      icon: const Icon(
+                        Icons.g_mobiledata_rounded,
+                      ),
                       label: const Text(
                         'Google দিয়ে লগইন',
                         style: TextStyle(
                           fontSize: 16,
                         ),
                       ),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(
+                      style:
+                          OutlinedButton.styleFrom(
+                        minimumSize:
+                            const Size(
                           double.infinity,
                           52,
                         ),
@@ -300,21 +387,28 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 28),
 
+                    // ==================================================
+                    // SIGN UP
+                    // ==================================================
+
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisAlignment:
+                          MainAxisAlignment.center,
                       children: [
                         Text(
                           'নতুন ব্যবহারকারী?',
                           style: TextStyle(
-                            color: Colors.grey.shade700,
+                            color:
+                                Colors.grey.shade700,
                           ),
                         ),
                         TextButton(
                           onPressed: _isLoading
                               ? null
                               : () {
-                                  Navigator.push(
+                                  Navigator.of(
                                     context,
+                                  ).push(
                                     MaterialPageRoute(
                                       builder: (_) =>
                                           const SignupScreen(),
@@ -324,7 +418,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: const Text(
                             'অ্যাকাউন্ট তৈরি করুন',
                             style: TextStyle(
-                              fontWeight: FontWeight.bold,
+                              fontWeight:
+                                  FontWeight.bold,
                             ),
                           ),
                         ),
