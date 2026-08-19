@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class AdminSettingsScreen extends StatefulWidget {
@@ -10,14 +11,126 @@ class AdminSettingsScreen extends StatefulWidget {
 
 class _AdminSettingsScreenState
     extends State<AdminSettingsScreen> {
-  bool allowRegistration = true;
-  bool allowPosts = true;
-  bool allowComments = true;
-  bool maintenanceMode = false;
-  bool notificationsEnabled = true;
+  final FirebaseFirestore _firestore =
+      FirebaseFirestore.instance;
+
+  bool _maintenanceMode = false;
+  bool _allowRegistration = true;
+  bool _allowPosts = true;
+  bool _allowComments = true;
+  bool _allowWithdraw = true;
+
+  bool _loading = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    try {
+      final document = await _firestore
+          .collection('settings')
+          .doc('app_settings')
+          .get();
+
+      if (document.exists) {
+        final data =
+            document.data() ?? {};
+
+        _maintenanceMode =
+            data['maintenanceMode'] ?? false;
+
+        _allowRegistration =
+            data['allowRegistration'] ?? true;
+
+        _allowPosts =
+            data['allowPosts'] ?? true;
+
+        _allowComments =
+            data['allowComments'] ?? true;
+
+        _allowWithdraw =
+            data['allowWithdraw'] ?? true;
+      }
+    } catch (_) {
+      // Default settings থাকবে।
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _loading = false;
+    });
+  }
+
+  Future<void> _saveSettings() async {
+    setState(() {
+      _saving = true;
+    });
+
+    try {
+      await _firestore
+          .collection('settings')
+          .doc('app_settings')
+          .set({
+        'maintenanceMode':
+            _maintenanceMode,
+        'allowRegistration':
+            _allowRegistration,
+        'allowPosts':
+            _allowPosts,
+        'allowComments':
+            _allowComments,
+        'allowWithdraw':
+            _allowWithdraw,
+        'updatedAt':
+            FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Admin Settings Save হয়েছে।',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Save করা যায়নি: $error',
+          ),
+        ),
+      );
+    } finally {
+      if (!mounted) return;
+
+      setState(() {
+        _saving = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Admin Settings'),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -26,152 +139,168 @@ class _AdminSettingsScreenState
             fontWeight: FontWeight.bold,
           ),
         ),
+        actions: [
+          IconButton(
+            onPressed:
+                _saving ? null : _saveSettings,
+            icon: const Icon(
+              Icons.save_outlined,
+            ),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
-          const Card(
-            child: ListTile(
-              leading: CircleAvatar(
-                child: Icon(Icons.admin_panel_settings),
-              ),
-              title: Text(
-                'Admin Settings',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
+          _section(
+            title: 'Application',
+            children: [
+              SwitchListTile(
+                secondary: const Icon(
+                  Icons.build_outlined,
                 ),
+                title: const Text(
+                  'Maintenance Mode',
+                ),
+                subtitle: const Text(
+                  'App maintenance mode চালু করুন',
+                ),
+                value: _maintenanceMode,
+                onChanged: (value) {
+                  setState(() {
+                    _maintenanceMode = value;
+                  });
+                },
               ),
-              subtitle: Text(
-                'অ্যাপের গুরুত্বপূর্ণ Settings পরিচালনা করুন',
-              ),
-            ),
+            ],
           ),
-
           const SizedBox(height: 10),
-
-          const Text(
-            'App Control',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          _section(
+            title: 'Users',
+            children: [
+              SwitchListTile(
+                secondary: const Icon(
+                  Icons.person_add_outlined,
+                ),
+                title: const Text(
+                  'Allow Registration',
+                ),
+                value: _allowRegistration,
+                onChanged: (value) {
+                  setState(() {
+                    _allowRegistration = value;
+                  });
+                },
+              ),
+            ],
           ),
-
-          const SizedBox(height: 5),
-
-          Card(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  secondary: const Icon(
-                    Icons.person_add,
-                  ),
-                  title: const Text(
-                    'Allow Registration',
-                  ),
-                  subtitle: const Text(
-                    'নতুন User Account খুলতে পারবে',
-                  ),
-                  value: allowRegistration,
-                  onChanged: (value) {
-                    setState(() {
-                      allowRegistration = value;
-                    });
-                  },
+          const SizedBox(height: 10),
+          _section(
+            title: 'Posts & Comments',
+            children: [
+              SwitchListTile(
+                secondary: const Icon(
+                  Icons.article_outlined,
                 ),
-
-                SwitchListTile(
-                  secondary: const Icon(
-                    Icons.article,
-                  ),
-                  title: const Text(
-                    'Allow Posts',
-                  ),
-                  subtitle: const Text(
-                    'User Post করতে পারবে',
-                  ),
-                  value: allowPosts,
-                  onChanged: (value) {
-                    setState(() {
-                      allowPosts = value;
-                    });
-                  },
+                title: const Text(
+                  'Allow Posts',
                 ),
-
-                SwitchListTile(
-                  secondary: const Icon(
-                    Icons.comment,
-                  ),
-                  title: const Text(
-                    'Allow Comments',
-                  ),
-                  subtitle: const Text(
-                    'User Comment করতে পারবে',
-                  ),
-                  value: allowComments,
-                  onChanged: (value) {
-                    setState(() {
-                      allowComments = value;
-                    });
-                  },
+                value: _allowPosts,
+                onChanged: (value) {
+                  setState(() {
+                    _allowPosts = value;
+                  });
+                },
+              ),
+              SwitchListTile(
+                secondary: const Icon(
+                  Icons.comment_outlined,
                 ),
-
-                SwitchListTile(
-                  secondary: const Icon(
-                    Icons.notifications,
-                  ),
-                  title: const Text(
-                    'Notifications',
-                  ),
-                  subtitle: const Text(
-                    'App Notifications চালু থাকবে',
-                  ),
-                  value: notificationsEnabled,
-                  onChanged: (value) {
-                    setState(() {
-                      notificationsEnabled = value;
-                    });
-                  },
+                title: const Text(
+                  'Allow Comments',
                 ),
-
-                SwitchListTile(
-                  secondary: const Icon(
-                    Icons.build,
-                  ),
-                  title: const Text(
-                    'Maintenance Mode',
-                  ),
-                  subtitle: const Text(
-                    'App Maintenance Mode চালু করুন',
-                  ),
-                  value: maintenanceMode,
-                  onChanged: (value) {
-                    setState(() {
-                      maintenanceMode = value;
-                    });
-                  },
-                ),
-              ],
-            ),
+                value: _allowComments,
+                onChanged: (value) {
+                  setState(() {
+                    _allowComments = value;
+                  });
+                },
+              ),
+            ],
           ),
-
+          const SizedBox(height: 10),
+          _section(
+            title: 'Money',
+            children: [
+              SwitchListTile(
+                secondary: const Icon(
+                  Icons.payments_outlined,
+                ),
+                title: const Text(
+                  'Allow Withdraw',
+                ),
+                subtitle: const Text(
+                  'User Withdraw চালু/বন্ধ করুন',
+                ),
+                value: _allowWithdraw,
+                onChanged: (value) {
+                  setState(() {
+                    _allowWithdraw = value;
+                  });
+                },
+              ),
+            ],
+          ),
           const SizedBox(height: 20),
-
-          FilledButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Admin Settings সংরক্ষণ করা হয়েছে।',
-                  ),
-                ),
-              );
-            },
-            icon: const Icon(Icons.save),
-            label: const Text(
-              'Save Settings',
+          SizedBox(
+            height: 52,
+            child: FilledButton.icon(
+              onPressed:
+                  _saving ? null : _saveSettings,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child:
+                          CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.save,
+                    ),
+              label: Text(
+                _saving
+                    ? 'Saving...'
+                    : 'Save Settings',
+              ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _section({
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Card(
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          ...children,
         ],
       ),
     );
