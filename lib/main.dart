@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -84,8 +85,10 @@ class UserRoleGate extends StatelessWidget {
     }
 
     final document =
-        await FirebaseFirestoreHelper
-            .getUserDocument(user.uid);
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
 
     if (!document.exists) {
       return false;
@@ -116,19 +119,6 @@ class UserRoleGate extends StatelessWidget {
         return const HomeScreen();
       },
     );
-  }
-}
-
-class FirebaseFirestoreHelper {
-  static Future<
-      DocumentSnapshot<Map<String, dynamic>>>
-      getUserDocument(
-    String uid,
-  ) async {
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
   }
 }
 
