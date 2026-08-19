@@ -13,7 +13,12 @@ class UserDetailsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('User Details'),
+        title: const Text(
+          'User Details',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
       body: StreamBuilder<
           DocumentSnapshot<Map<String, dynamic>>>(
@@ -29,10 +34,21 @@ class UserDetailsScreen extends StatelessWidget {
             );
           }
 
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'User Details লোড করা যায়নি.\n${snapshot.error}',
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+
           if (!snapshot.hasData ||
               !snapshot.data!.exists) {
             return const Center(
-              child: Text('User পাওয়া যায়নি।'),
+              child: Text(
+                'User পাওয়া যায়নি।',
+              ),
             );
           }
 
@@ -51,6 +67,10 @@ class UserDetailsScreen extends StatelessWidget {
               data['username']?.toString() ??
                   '';
 
+          final phone =
+              data['phone']?.toString() ??
+                  '';
+
           final role =
               data['role']?.toString() ??
                   'user';
@@ -65,7 +85,7 @@ class UserDetailsScreen extends StatelessWidget {
                 radius: 50,
                 child: Icon(
                   Icons.person,
-                  size: 50,
+                  size: 55,
                 ),
               ),
 
@@ -75,7 +95,7 @@ class UserDetailsScreen extends StatelessWidget {
                 child: Text(
                   name,
                   style: const TextStyle(
-                    fontSize: 25,
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -83,11 +103,45 @@ class UserDetailsScreen extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              _item('Email', email),
-              _item('Username', username),
-              _item('Role', role),
-              _item('Wallet', '৳$wallet'),
-              _item('User ID', userId),
+              _infoCard(
+                'User ID',
+                userId,
+                Icons.fingerprint,
+              ),
+
+              _infoCard(
+                'Email',
+                email,
+                Icons.email,
+              ),
+
+              _infoCard(
+                'Username',
+                username.isEmpty
+                    ? 'নেই'
+                    : '@$username',
+                Icons.alternate_email,
+              ),
+
+              _infoCard(
+                'Phone',
+                phone.isEmpty
+                    ? 'নেই'
+                    : phone,
+                Icons.phone,
+              ),
+
+              _infoCard(
+                'Role',
+                role,
+                Icons.admin_panel_settings,
+              ),
+
+              _infoCard(
+                'Wallet',
+                '৳$wallet',
+                Icons.account_balance_wallet,
+              ),
             ],
           );
         },
@@ -95,20 +149,30 @@ class UserDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _item(
+  Widget _infoCard(
     String title,
     String value,
+    IconData icon,
   ) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin:
+          const EdgeInsets.only(bottom: 10),
       child: ListTile(
+        leading: Icon(icon),
         title: Text(
           title,
           style: const TextStyle(
-            fontWeight: FontWeight.bold,
+            fontSize: 12,
+            color: Colors.grey,
           ),
         ),
-        subtitle: Text(value),
+        subtitle: Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
