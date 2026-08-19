@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import '../../services/earnings_service.dart';
-
 class AdminWithdrawScreen extends StatefulWidget {
   const AdminWithdrawScreen({super.key});
 
@@ -16,7 +14,7 @@ class _AdminWithdrawScreenState
   final FirebaseFirestore _firestore =
       FirebaseFirestore.instance;
 
-  bool _loading = false;
+  bool _processing = false;
 
   CollectionReference<Map<String, dynamic>>
       get _withdrawRequests =>
@@ -36,17 +34,9 @@ class _AdminWithdrawScreenState
               .collection('settings')
               .doc('owner_wallet');
 
-  String _money(dynamic value) {
-    double amount = 0;
-
-    if (value is num) {
-      amount = value.toDouble();
-    } else if (value is String) {
-      amount = double.tryParse(value) ?? 0;
-    }
-
-    return '৳${amount.toStringAsFixed(2)}';
-  }
+  // ============================================================
+  // HELPERS
+  // ============================================================
 
   double _toDouble(dynamic value) {
     if (value is num) {
@@ -54,10 +44,20 @@ class _AdminWithdrawScreenState
     }
 
     if (value is String) {
-      return double.tryParse(value) ?? 0;
+      return double.tryParse(value) ?? 0.0;
     }
 
-    return 0;
+    return 0.0;
+  }
+
+  String _money(dynamic value) {
+    return '৳${_toDouble(value).toStringAsFixed(2)}';
+  }
+
+  String _cleanError(Object error) {
+    return error
+        .toString()
+        .replaceFirst('Exception: ', '');
   }
 
   String _statusText(String status) {
@@ -98,34 +98,52 @@ class _AdminWithdrawScreenState
     }
   }
 
+  String _formatDate(dynamic value) {
+    if (value is Timestamp) {
+      final date = value.toDate();
+
+      return '${date.day.toString().padLeft(2, '0')}/'
+          '${date.month.toString().padLeft(2, '0')}/'
+          '${date.year} '
+          '${date.hour.toString().padLeft(2, '0')}:'
+          '${date.minute.toString().padLeft(2, '0')}';
+    }
+
+    return 'সময় পাওয়া যায়নি';
+  }
+
+  // ============================================================
+  // APPROVE CONFIRMATION
+  // ============================================================
+
   Future<void> _approveRequest(
     String requestId,
   ) async {
-    final confirm =
+    final confirmed =
         await _showConfirmDialog(
-      title: 'Approve Withdraw?',
+      title: 'Withdraw Approve',
       message:
-          'এই withdraw request approve করতে চান?',
+          'আপনি কি এই withdraw request approve করতে চান?',
       confirmText: 'Approve',
     );
 
-    if (!confirm) {
+    if (!confirmed) {
       return;
     }
 
     setState(() {
-      _loading = true;
+      _processing = true;
     });
 
     try {
-      await _processApprove(requestId);
+      await _approveWithdraw(requestId);
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Withdraw request approve হয়েছে।',
+            'Withdraw request সফলভাবে approve হয়েছে।',
           ),
         ),
       );
@@ -135,37 +153,33 @@ class _AdminWithdrawScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            e.toString().replaceFirst(
-                  'Exception: ',
-                  '',
-                ),
+            _cleanError(e),
           ),
         ),
       );
     } finally {
       if (mounted) {
         setState(() {
-          _loading = false;
+          _processing = false;
         });
       }
     }
   }
 
-  Future<void> _processApprove(
+  // ============================================================
+  // APPROVE WITHDRAW
+  // ============================================================
+
+  Future<void> _approveWithdraw(
     String requestId,
   ) async {
     final requestRef =
         _withdrawRequests.doc(requestId);
 
-    final transactionRef =
-        _transactions.doc();
-
     await _firestore.runTransaction(
       (transaction) async {
         final requestSnapshot =
-            await transaction.get(
-          requestRef,
-        );
+            await transaction.get(requestRef);
 
         if (!requestSnapshot.exists) {
           throw Exception(
@@ -213,23 +227,13 @@ class _AdminWithdrawScreenState
             _users.doc(userId);
 
         final userSnapshot =
-            await transaction.get(
-          userRef,
-        );
+            await transaction.get(userRef);
 
         if (!userSnapshot.exists) {
           throw Exception(
             'User profile পাওয়া যায়নি।',
           );
         }
-
-        final userData =
-            userSnapshot.data() ?? {};
-
-        final totalWithdrawn =
-            _toDouble(
-          userData['totalWithdrawn'],
-        );
 
         final ownerSnapshot =
             await transaction.get(
@@ -244,10 +248,26 @@ class _AdminWithdrawScreenState
           ownerData['balance'],
         );
 
-        final ownerTotalPaid =
+        // --------------------------------------------------------
+        // নিরাপত্তা:
+        // Owner wallet-এ টাকা না থাকলে approve হবে না।
+        // --------------------------------------------------------
+
+        if (ownerBalance < amount) {
+          throw Exception(
+            'Owner wallet-এ পর্যাপ্ত টাকা নেই। '
+            'বর্তমান balance: ${_money(ownerBalance)}',
+          );
+        }
+
+        final totalPaidToUsers =
             _toDouble(
           ownerData['totalPaidToUsers'],
         );
+
+        // --------------------------------------------------------
+        // Owner Wallet
+        // --------------------------------------------------------
 
         transaction.set(
           _ownerWallet,
@@ -256,13 +276,17 @@ class _AdminWithdrawScreenState
                 ownerBalance - amount,
 
             'totalPaidToUsers':
-                ownerTotalPaid + amount,
+                totalPaidToUsers + amount,
 
             'updatedAt':
                 FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),
         );
+
+        // --------------------------------------------------------
+        // Withdraw Request
+        // --------------------------------------------------------
 
         transaction.update(
           requestRef,
@@ -277,6 +301,13 @@ class _AdminWithdrawScreenState
                 FieldValue.serverTimestamp(),
           },
         );
+
+        // --------------------------------------------------------
+        // Transaction History
+        // --------------------------------------------------------
+
+        final transactionRef =
+            _transactions.doc();
 
         transaction.set(
           transactionRef,
@@ -306,21 +337,13 @@ class _AdminWithdrawScreenState
                 FieldValue.serverTimestamp(),
           },
         );
-
-        transaction.set(
-          userRef,
-          {
-            'totalWithdrawn':
-                totalWithdrawn,
-
-            'updatedAt':
-                FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
       },
     );
   }
+
+  // ============================================================
+  // REJECT
+  // ============================================================
 
   Future<void> _rejectRequest(
     String requestId,
@@ -333,11 +356,11 @@ class _AdminWithdrawScreenState
     }
 
     setState(() {
-      _loading = true;
+      _processing = true;
     });
 
     try {
-      await _processReject(
+      await _rejectWithdraw(
         requestId,
         reason,
       );
@@ -347,7 +370,7 @@ class _AdminWithdrawScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Withdraw request reject হয়েছে এবং টাকা User Wallet-এ ফেরত দেওয়া হয়েছে।',
+            'Withdraw reject হয়েছে এবং টাকা User Wallet-এ ফেরত দেওয়া হয়েছে।',
           ),
         ),
       );
@@ -357,44 +380,34 @@ class _AdminWithdrawScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            e.toString().replaceFirst(
-                  'Exception: ',
-                  '',
-                ),
+            _cleanError(e),
           ),
         ),
       );
     } finally {
       if (mounted) {
         setState(() {
-          _loading = false;
+          _processing = false;
         });
       }
     }
   }
 
-  Future<void> _processReject(
+  // ============================================================
+  // REJECT WITHDRAW
+  // ============================================================
+
+  Future<void> _rejectWithdraw(
     String requestId,
     String reason,
   ) async {
     final requestRef =
         _withdrawRequests.doc(requestId);
 
-    final transactionQuery =
-        await _transactions
-            .where(
-              'referenceId',
-              isEqualTo: requestId,
-            )
-            .limit(1)
-            .get();
-
     await _firestore.runTransaction(
       (transaction) async {
         final requestSnapshot =
-            await transaction.get(
-          requestRef,
-        );
+            await transaction.get(requestRef);
 
         if (!requestSnapshot.exists) {
           throw Exception(
@@ -442,9 +455,7 @@ class _AdminWithdrawScreenState
             _users.doc(userId);
 
         final userSnapshot =
-            await transaction.get(
-          userRef,
-        );
+            await transaction.get(userRef);
 
         if (!userSnapshot.exists) {
           throw Exception(
@@ -470,6 +481,10 @@ class _AdminWithdrawScreenState
                 ? currentTotalWithdrawn - amount
                 : 0.0;
 
+        // --------------------------------------------------------
+        // টাকা User Wallet-এ ফেরত
+        // --------------------------------------------------------
+
         transaction.set(
           userRef,
           {
@@ -484,6 +499,10 @@ class _AdminWithdrawScreenState
           },
           SetOptions(merge: true),
         );
+
+        // --------------------------------------------------------
+        // Withdraw Request
+        // --------------------------------------------------------
 
         transaction.update(
           requestRef,
@@ -502,12 +521,26 @@ class _AdminWithdrawScreenState
           },
         );
 
-        if (transactionQuery.docs.isNotEmpty) {
-          final transactionDoc =
-              transactionQuery.docs.first;
+        // --------------------------------------------------------
+        // Transaction History
+        // --------------------------------------------------------
 
+        final transactionQuery =
+            await _transactions
+                .where(
+                  'userId',
+                  isEqualTo: userId,
+                )
+                .where(
+                  'referenceId',
+                  isEqualTo: requestId,
+                )
+                .limit(1)
+                .get();
+
+        if (transactionQuery.docs.isNotEmpty) {
           transaction.update(
-            transactionDoc.reference,
+            transactionQuery.docs.first.reference,
             {
               'status':
                   'rejected',
@@ -523,6 +556,10 @@ class _AdminWithdrawScreenState
       },
     );
   }
+
+  // ============================================================
+  // CONFIRM DIALOG
+  // ============================================================
 
   Future<bool> _showConfirmDialog({
     required String title,
@@ -567,6 +604,10 @@ class _AdminWithdrawScreenState
     return result ?? false;
   }
 
+  // ============================================================
+  // REJECT DIALOG
+  // ============================================================
+
   Future<String?> _showRejectDialog() async {
     final controller =
         TextEditingController();
@@ -585,9 +626,9 @@ class _AdminWithdrawScreenState
             decoration:
                 const InputDecoration(
               labelText:
-                  'Reject reason',
+                  'Reject Reason',
               hintText:
-                  'কেন reject করা হচ্ছে?',
+                  'Reject করার কারণ লিখুন',
               border:
                   OutlineInputBorder(),
             ),
@@ -629,22 +670,9 @@ class _AdminWithdrawScreenState
     return result;
   }
 
-  String _formatDate(
-    dynamic value,
-  ) {
-    if (value is Timestamp) {
-      final date =
-          value.toDate();
-
-      return '${date.day.toString().padLeft(2, '0')}/'
-          '${date.month.toString().padLeft(2, '0')}/'
-          '${date.year} '
-          '${date.hour.toString().padLeft(2, '0')}:'
-          '${date.minute.toString().padLeft(2, '0')}';
-    }
-
-    return 'সময় পাওয়া যায়নি';
-  }
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -681,12 +709,9 @@ class _AdminWithdrawScreenState
                 padding:
                     const EdgeInsets.all(20),
                 child: Text(
-                  snapshot.error
-                      .toString()
-                      .replaceFirst(
-                        'Exception: ',
-                        '',
-                      ),
+                  _cleanError(
+                    snapshot.error!,
+                  ),
                 ),
               ),
             );
@@ -723,12 +748,9 @@ class _AdminWithdrawScreenState
                 final doc =
                     docs[index];
 
-                final data =
-                    doc.data();
-
                 return _requestCard(
                   doc.id,
-                  data,
+                  doc.data(),
                 );
               },
             ),
@@ -737,6 +759,10 @@ class _AdminWithdrawScreenState
       ),
     );
   }
+
+  // ============================================================
+  // REQUEST CARD
+  // ============================================================
 
   Widget _requestCard(
     String requestId,
@@ -810,8 +836,7 @@ class _AdminWithdrawScreenState
                 Expanded(
                   child: Column(
                     crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
+                        CrossAxisAlignment.start,
                     children: [
                       Text(
                         _money(amount),
@@ -823,7 +848,7 @@ class _AdminWithdrawScreenState
                         ),
                       ),
                       const SizedBox(
-                        height: 3,
+                        height: 4,
                       ),
                       Text(
                         '$method • $account',
@@ -837,20 +862,18 @@ class _AdminWithdrawScreenState
                 ),
                 Container(
                   padding:
-                      const EdgeInsets
-                          .symmetric(
+                      const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 6,
                   ),
                   decoration:
                       BoxDecoration(
-                    color: statusColor
-                        .withOpacity(
+                    color:
+                        statusColor.withOpacity(
                       0.12,
                     ),
                     borderRadius:
-                        BorderRadius
-                            .circular(
+                        BorderRadius.circular(
                       20,
                     ),
                   ),
@@ -871,17 +894,16 @@ class _AdminWithdrawScreenState
               height: 25,
             ),
 
-            Text(
-              'User ID:',
-              style:
-                  const TextStyle(
+            const Text(
+              'User ID',
+              style: TextStyle(
                 fontWeight:
                     FontWeight.bold,
               ),
             ),
 
             const SizedBox(
-              height: 3,
+              height: 4,
             ),
 
             SelectableText(
@@ -901,13 +923,12 @@ class _AdminWithdrawScreenState
               style:
                   const TextStyle(
                 fontSize: 12,
-                color:
-                    Colors.grey,
+                color: Colors.grey,
               ),
             ),
 
             const SizedBox(
-              height: 5,
+              height: 4,
             ),
 
             Text(
@@ -915,8 +936,7 @@ class _AdminWithdrawScreenState
               style:
                   const TextStyle(
                 fontSize: 12,
-                color:
-                    Colors.grey,
+                color: Colors.grey,
               ),
             ),
 
@@ -935,16 +955,15 @@ class _AdminWithdrawScreenState
 
             if (status == 'pending') ...[
               const SizedBox(
-                height: 15,
+                height: 16,
               ),
-
               Row(
                 children: [
                   Expanded(
                     child:
                         OutlinedButton.icon(
                       onPressed:
-                          _loading
+                          _processing
                               ? null
                               : () =>
                                   _rejectRequest(
@@ -967,16 +986,14 @@ class _AdminWithdrawScreenState
                       ),
                     ),
                   ),
-
                   const SizedBox(
                     width: 10,
                   ),
-
                   Expanded(
                     child:
                         ElevatedButton.icon(
                       onPressed:
-                          _loading
+                          _processing
                               ? null
                               : () =>
                                   _approveRequest(
