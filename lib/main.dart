@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'screens/admin/admin_dashboard_screen.dart';
+import 'services/data_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,7 +31,8 @@ class BondhuSocialApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.blue,
         ),
-        scaffoldBackgroundColor: const Color(0xFFF0F2F5),
+        scaffoldBackgroundColor:
+            const Color(0xFFF0F2F5),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
@@ -41,6 +44,10 @@ class BondhuSocialApp extends StatelessWidget {
   }
 }
 
+// ============================================================
+// AUTH GATE
+// ============================================================
+
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -49,46 +56,133 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        // ----------------------------------------------------
+        // LOADING
+        // ----------------------------------------------------
+
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
           return const SplashScreen();
         }
 
-        if (snapshot.hasData) {
-          return const HomeScreen();
+        // ----------------------------------------------------
+        // ERROR
+        // ----------------------------------------------------
+
+        if (snapshot.hasError) {
+          return const LoginScreen();
         }
 
-        return const LoginScreen();
+        // ----------------------------------------------------
+        // USER NOT LOGGED IN
+        // ----------------------------------------------------
+
+        if (!snapshot.hasData ||
+            snapshot.data == null) {
+          return const LoginScreen();
+        }
+
+        // ----------------------------------------------------
+        // USER LOGGED IN
+        // ----------------------------------------------------
+
+        return const RoleGate();
       },
     );
   }
 }
 
-class SplashScreen extends StatelessWidget {
-  const SplashScreen({super.key});
+// ============================================================
+// ROLE GATE
+// ============================================================
+
+class RoleGate extends StatelessWidget {
+  const RoleGate({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return FutureBuilder<bool>(
+      future: DataService.instance.isAdmin(),
+      builder: (context, snapshot) {
+        // ----------------------------------------------------
+        // CHECKING ROLE
+        // ----------------------------------------------------
+
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
+          return const SplashScreen(
+            message: 'Account যাচাই করা হচ্ছে...',
+          );
+        }
+
+        // ----------------------------------------------------
+        // ADMIN
+        // ----------------------------------------------------
+
+        if (snapshot.data == true) {
+          return const AdminDashboardScreen();
+        }
+
+        // ----------------------------------------------------
+        // NORMAL USER
+        // ----------------------------------------------------
+
+        return const HomeScreen();
+      },
+    );
+  }
+}
+
+// ============================================================
+// SPLASH SCREEN
+// ============================================================
+
+class SplashScreen extends StatelessWidget {
+  final String message;
+
+  const SplashScreen({
+    super.key,
+    this.message = 'লোড হচ্ছে...',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
       backgroundColor: Colors.white,
       body: Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment:
+              MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.people_alt_rounded,
               size: 85,
               color: Colors.blue,
             ),
-            SizedBox(height: 20),
-            Text(
+
+            const SizedBox(height: 20),
+
+            const Text(
               'বন্ধু সোশ্যাল',
               style: TextStyle(
                 fontSize: 30,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            SizedBox(height: 25),
-            CircularProgressIndicator(),
+
+            const SizedBox(height: 25),
+
+            const CircularProgressIndicator(),
+
+            const SizedBox(height: 15),
+
+            Text(
+              message,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade700,
+              ),
+            ),
           ],
         ),
       ),
