@@ -3,6 +3,11 @@ import 'package:flutter/material.dart';
 
 import 'admin_earnings_screen.dart';
 import 'admin_withdraw_screen.dart';
+import 'admin_reports_screen.dart';
+import 'admin_settings_screen.dart';
+import 'admin_notifications_screen.dart';
+import 'user_details_screen.dart';
+import 'post_details_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -17,9 +22,10 @@ class _AdminDashboardScreenState
   final FirebaseFirestore _firestore =
       FirebaseFirestore.instance;
 
-  // ============================================================
-  // MONEY
-  // ============================================================
+  bool _showUsers = false;
+  bool _showPosts = false;
+
+  String _userSearch = '';
 
   double _toDouble(dynamic value) {
     if (value is num) {
@@ -37,10 +43,6 @@ class _AdminDashboardScreenState
     return '৳${_toDouble(value).toStringAsFixed(2)}';
   }
 
-  // ============================================================
-  // OWNER WALLET
-  // ============================================================
-
   Stream<DocumentSnapshot<Map<String, dynamic>>>
       _ownerWalletStream() {
     return _firestore
@@ -49,10 +51,6 @@ class _AdminDashboardScreenState
         .snapshots();
   }
 
-  // ============================================================
-  // USERS
-  // ============================================================
-
   Stream<QuerySnapshot<Map<String, dynamic>>>
       _usersStream() {
     return _firestore
@@ -60,20 +58,16 @@ class _AdminDashboardScreenState
         .snapshots();
   }
 
-  // ============================================================
-  // POSTS
-  // ============================================================
-
   Stream<QuerySnapshot<Map<String, dynamic>>>
       _postsStream() {
     return _firestore
         .collection('posts')
+        .orderBy(
+          'createdAt',
+          descending: true,
+        )
         .snapshots();
   }
-
-  // ============================================================
-  // WITHDRAW
-  // ============================================================
 
   Stream<QuerySnapshot<Map<String, dynamic>>>
       _pendingWithdrawalsStream() {
@@ -86,456 +80,1037 @@ class _AdminDashboardScreenState
         .snapshots();
   }
 
-  // ============================================================
-  // BUILD
-  // ============================================================
+  void _openPage(Widget page) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => page,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          const Color(0xFFF0F2F5),
+      backgroundColor: const Color(0xFFF0F2F5),
 
       appBar: AppBar(
         title: const Text(
-          'ADMIN CONTROL PANEL',
+          'Admin Dashboard',
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 18,
           ),
         ),
         centerTitle: true,
-      ),
-
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-
-          // ======================================================
-          // ADMIN HEADER
-          // ======================================================
-
-          Card(
-            elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-
-                  const CircleAvatar(
-                    radius: 42,
-                    child: Icon(
-                      Icons.admin_panel_settings,
-                      size: 48,
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  const Text(
-                    'ADMIN CONTROL PANEL',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  Text(
-                    'বন্ধু সোশ্যাল অ্যাপ পরিচালনা করুন',
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                ],
-              ),
+        actions: [
+          IconButton(
+            tooltip: 'Notifications',
+            onPressed: () {
+              _openPage(
+                const AdminNotificationsScreen(),
+              );
+            },
+            icon: const Icon(
+              Icons.notifications_outlined,
             ),
           ),
-
-          const SizedBox(height: 16),
-
-          // ======================================================
-          // OWNER WALLET
-          // ======================================================
-
-          StreamBuilder<
-              DocumentSnapshot<
-                  Map<String, dynamic>>>(
-            stream: _ownerWalletStream(),
-            builder: (
-              context,
-              snapshot,
-            ) {
-              if (snapshot.connectionState ==
-                  ConnectionState.waiting) {
-                return const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                  ),
-                );
-              }
-
-              final data =
-                  snapshot.data?.data() ?? {};
-
-              final balance =
-                  _toDouble(data['balance']);
-
-              final revenue =
-                  _toDouble(data['totalEarned']);
-
-              final paid =
-                  _toDouble(
-                data['totalPaidToUsers'],
+          IconButton(
+            tooltip: 'Settings',
+            onPressed: () {
+              _openPage(
+                const AdminSettingsScreen(),
               );
+            },
+            icon: const Icon(
+              Icons.settings_outlined,
+            ),
+          ),
+        ],
+      ),
 
-              return Card(
-                elevation: 3,
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    children: [
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await Future<void>.delayed(
+            const Duration(milliseconds: 500),
+          );
+        },
 
-                      const Row(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+
+            // ==================================================
+            // ADMIN HEADER
+            // ==================================================
+
+            Card(
+              elevation: 4,
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  borderRadius:
+                      BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 34,
+                      child: Icon(
+                        Icons.admin_panel_settings,
+                        size: 38,
+                      ),
+                    ),
+
+                    const SizedBox(width: 15),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
                         children: [
-
-                          Icon(
-                            Icons.account_balance_wallet,
-                            size: 28,
-                          ),
-
-                          SizedBox(width: 10),
-
-                          Text(
-                            'Owner Wallet',
+                          const Text(
+                            'Admin Panel',
                             style: TextStyle(
-                              fontSize: 19,
+                              fontSize: 24,
                               fontWeight:
                                   FontWeight.bold,
                             ),
                           ),
-                        ],
-                      ),
 
-                      const SizedBox(height: 12),
+                          const SizedBox(height: 5),
 
-                      Text(
-                        _money(balance),
-                        style: const TextStyle(
-                          fontSize: 32,
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height: 15),
-
-                      Row(
-                        children: [
-
-                          Expanded(
-                            child: _moneyStat(
-                              'Revenue',
-                              _money(revenue),
-                              Icons.trending_up,
+                          Text(
+                            'বন্ধু সোশ্যাল পরিচালনা কেন্দ্র',
+                            style: TextStyle(
+                              color:
+                                  Colors.grey.shade700,
                             ),
                           ),
 
-                          Expanded(
-                            child: _moneyStat(
-                              'Paid Users',
-                              _money(paid),
-                              Icons.payments,
+                          const SizedBox(height: 8),
+
+                          Container(
+                            padding:
+                                const EdgeInsets
+                                    .symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius:
+                                  BorderRadius.circular(
+                                20,
+                              ),
+                              border: Border.all(
+                                color: Colors.green,
+                              ),
+                            ),
+                            child: const Text(
+                              'ADMIN',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight:
+                                    FontWeight.bold,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              );
-            },
-          ),
-
-          const SizedBox(height: 18),
-
-          // ======================================================
-          // ADMIN CONTROL PANEL TITLE
-          // ======================================================
-
-          const Padding(
-            padding: EdgeInsets.only(
-              left: 4,
-              bottom: 10,
+              ),
             ),
-            child: Text(
-              'Admin Control Panel',
+
+            const SizedBox(height: 15),
+
+            // ==================================================
+            // QUICK ADMIN MENU
+            // ==================================================
+
+            const Text(
+              'Admin Controls',
               style: TextStyle(
-                fontSize: 20,
+                fontSize: 19,
                 fontWeight: FontWeight.bold,
               ),
             ),
-          ),
 
-          // ======================================================
-          // USERS MANAGEMENT
-          // ======================================================
+            const SizedBox(height: 8),
 
-          _controlTile(
-            icon: Icons.people_alt,
-            title: 'Users Management',
-            subtitle:
-                'সব User দেখুন এবং পরিচালনা করুন',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      const UsersManagementScreen(),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics:
+                  const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.35,
+              children: [
+                _quickMenu(
+                  icon: Icons.flag_outlined,
+                  title: 'Reports',
+                  subtitle: 'Reports দেখুন',
+                  onTap: () {
+                    _openPage(
+                      const AdminReportsScreen(),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
 
-          const SizedBox(height: 10),
-
-          // ======================================================
-          // POSTS MANAGEMENT
-          // ======================================================
-
-          _controlTile(
-            icon: Icons.article,
-            title: 'Posts Management',
-            subtitle:
-                'সব Post দেখুন এবং পরিচালনা করুন',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      const PostsManagementScreen(),
+                _quickMenu(
+                  icon: Icons.notifications_outlined,
+                  title: 'Notifications',
+                  subtitle: 'Notification পাঠান',
+                  onTap: () {
+                    _openPage(
+                      const AdminNotificationsScreen(),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
 
-          const SizedBox(height: 10),
-
-          // ======================================================
-          // APP STATISTICS
-          // ======================================================
-
-          _controlTile(
-            icon: Icons.bar_chart,
-            title: 'App Statistics',
-            subtitle:
-                'User, Post এবং App-এর পরিসংখ্যান',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      const AppStatisticsScreen(),
+                _quickMenu(
+                  icon: Icons.settings_outlined,
+                  title: 'Settings',
+                  subtitle: 'App Settings',
+                  onTap: () {
+                    _openPage(
+                      const AdminSettingsScreen(),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
 
-          const SizedBox(height: 10),
-
-          // ======================================================
-          // ADMIN SECURITY
-          // ======================================================
-
-          _controlTile(
-            icon: Icons.security,
-            title: 'Admin Security',
-            subtitle:
-                'Admin account এবং security settings',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      const AdminSecurityScreen(),
-                ),
-              );
-            },
-          ),
-
-          const SizedBox(height: 10),
-
-          // ======================================================
-          // APP SETTINGS
-          // ======================================================
-
-          _controlTile(
-            icon: Icons.settings,
-            title: 'App Settings',
-            subtitle:
-                'অ্যাপের গুরুত্বপূর্ণ Settings পরিচালনা করুন',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      const AppSettingsScreen(),
-                ),
-              );
-            },
-          ),
-
-          const SizedBox(height: 18),
-
-          // ======================================================
-          // EARNINGS
-          // ======================================================
-
-          _controlTile(
-            icon: Icons.account_balance,
-            title: 'Earnings & Withdraw',
-            subtitle:
-                'Owner Wallet এবং Earnings পরিচালনা',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
+                _quickMenu(
+                  icon: Icons.account_balance_wallet,
+                  title: 'Earnings',
+                  subtitle: 'Income দেখুন',
+                  onTap: () {
+                    _openPage(
                       const AdminEarningsScreen(),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
+              ],
+            ),
 
-          const SizedBox(height: 10),
+            const SizedBox(height: 18),
 
-          // ======================================================
-          // WITHDRAW
-          // ======================================================
+            // ==================================================
+            // OWNER WALLET
+            // ==================================================
 
-          StreamBuilder<
-              QuerySnapshot<
-                  Map<String, dynamic>>>(
-            stream:
-                _pendingWithdrawalsStream(),
-            builder: (
-              context,
-              snapshot,
-            ) {
-              final count =
-                  snapshot.data?.docs.length ?? 0;
-
-              return _controlTile(
-                icon: Icons.payments,
-                title: 'Manage Withdrawals',
-                subtitle: count == 0
-                    ? 'কোনো pending request নেই'
-                    : '$count টি pending request আছে',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          const AdminWithdrawScreen(),
+            StreamBuilder<
+                DocumentSnapshot<
+                    Map<String, dynamic>>>(
+              stream: _ownerWalletStream(),
+              builder: (
+                context,
+                snapshot,
+              ) {
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Center(
+                        child:
+                            CircularProgressIndicator(),
+                      ),
                     ),
                   );
-                },
-                badge:
-                    count > 0 ? '$count' : null,
-              );
-            },
-          ),
+                }
 
-          const SizedBox(height: 25),
+                final data =
+                    snapshot.data?.data() ?? {};
 
-          // ======================================================
-          // SECURITY INFO
-          // ======================================================
+                final balance =
+                    _toDouble(
+                  data['balance'],
+                );
 
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
+                final totalEarned =
+                    _toDouble(
+                  data['totalEarned'],
+                );
 
-                  const Row(
-                    children: [
+                final totalPaid =
+                    _toDouble(
+                  data['totalPaidToUsers'],
+                );
 
-                      Icon(
-                        Icons.verified_user,
-                      ),
-
-                      SizedBox(width: 8),
-
-                      Text(
-                        'Admin Security',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight:
-                              FontWeight.bold,
+                return Card(
+                  elevation: 3,
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.all(18),
+                    child: Column(
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons
+                                  .account_balance_wallet,
+                              size: 28,
+                            ),
+                            SizedBox(width: 10),
+                            Text(
+                              'Owner Wallet',
+                              style: TextStyle(
+                                fontSize: 19,
+                                fontWeight:
+                                    FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
+
+                        const SizedBox(height: 15),
+
+                        Text(
+                          _money(balance),
+                          style: const TextStyle(
+                            fontSize: 30,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 15),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _smallStat(
+                                title: 'Revenue',
+                                value:
+                                    _money(
+                                  totalEarned,
+                                ),
+                                icon:
+                                    Icons.trending_up,
+                              ),
+                            ),
+                            Expanded(
+                              child: _smallStat(
+                                title: 'Paid Users',
+                                value:
+                                    _money(
+                                  totalPaid,
+                                ),
+                                icon:
+                                    Icons.payments,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 15),
+
+            // ==================================================
+            // USERS
+            // ==================================================
+
+            StreamBuilder<
+                QuerySnapshot<
+                    Map<String, dynamic>>>(
+              stream: _usersStream(),
+              builder: (
+                context,
+                snapshot,
+              ) {
+                final users =
+                    snapshot.data?.docs ?? [];
+
+                final filteredUsers =
+                    users.where(
+                  (document) {
+                    if (_userSearch
+                        .trim()
+                        .isEmpty) {
+                      return true;
+                    }
+
+                    final data =
+                        document.data();
+
+                    final name =
+                        data['name']
+                                ?.toString()
+                                .toLowerCase() ??
+                            '';
+
+                    final email =
+                        data['email']
+                                ?.toString()
+                                .toLowerCase() ??
+                            '';
+
+                    final username =
+                        data['username']
+                                ?.toString()
+                                .toLowerCase() ??
+                            '';
+
+                    final search =
+                        _userSearch
+                            .trim()
+                            .toLowerCase();
+
+                    return name.contains(search) ||
+                        email.contains(search) ||
+                        username.contains(search);
+                  },
+                ).toList();
+
+                return Card(
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading:
+                            const CircleAvatar(
+                          child: Icon(
+                            Icons.people,
+                          ),
+                        ),
+                        title: const Text(
+                          'Users',
+                          style: TextStyle(
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${users.length} জন User',
+                        ),
+                        trailing: Icon(
+                          _showUsers
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                        ),
+                        onTap: () {
+                          setState(() {
+                            _showUsers =
+                                !_showUsers;
+                          });
+                        },
                       ),
+
+                      if (_showUsers)
+                        Padding(
+                          padding:
+                              const EdgeInsets
+                                  .fromLTRB(
+                            16,
+                            0,
+                            16,
+                            16,
+                          ),
+                          child: Column(
+                            children: [
+                              TextField(
+                                decoration:
+                                    const InputDecoration(
+                                  hintText:
+                                      'User Search করুন...',
+                                  prefixIcon:
+                                      Icon(
+                                    Icons.search,
+                                  ),
+                                  border:
+                                      OutlineInputBorder(),
+                                ),
+                                onChanged:
+                                    (value) {
+                                  setState(() {
+                                    _userSearch =
+                                        value;
+                                  });
+                                },
+                              ),
+
+                              const SizedBox(
+                                height: 12,
+                              ),
+
+                              ...filteredUsers
+                                  .map(
+                                (document) =>
+                                    _userItem(
+                                  document,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
+                );
+              },
+            ),
 
-                  const SizedBox(height: 10),
+            const SizedBox(height: 10),
 
-                  Text(
-                    'Admin Dashboard শুধুমাত্র Admin account-এর জন্য ব্যবহারযোগ্য।',
-                    style: TextStyle(
-                      color:
-                          Colors.grey.shade700,
-                    ),
+            // ==================================================
+            // POSTS
+            // ==================================================
+
+            StreamBuilder<
+                QuerySnapshot<
+                    Map<String, dynamic>>>(
+              stream: _postsStream(),
+              builder: (
+                context,
+                snapshot,
+              ) {
+                final posts =
+                    snapshot.data?.docs ?? [];
+
+                return Card(
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading:
+                            const CircleAvatar(
+                          child: Icon(
+                            Icons.article,
+                          ),
+                        ),
+                        title: const Text(
+                          'Posts',
+                          style: TextStyle(
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${posts.length} টি Post',
+                        ),
+                        trailing: Icon(
+                          _showPosts
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                        ),
+                        onTap: () {
+                          setState(() {
+                            _showPosts =
+                                !_showPosts;
+                          });
+                        },
+                      ),
+
+                      if (_showPosts)
+                        Padding(
+                          padding:
+                              const EdgeInsets
+                                  .fromLTRB(
+                            16,
+                            0,
+                            16,
+                            16,
+                          ),
+                          child: Column(
+                            children: [
+                              ...posts
+                                  .take(30)
+                                  .map(
+                                (document) =>
+                                    _postItem(
+                                  document,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
+                );
+              },
+            ),
 
-                  const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
-                  const Text(
-                    'Admin role: admin',
-                    style: TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
+            // ==================================================
+            // WITHDRAW
+            // ==================================================
+
+            StreamBuilder<
+                QuerySnapshot<
+                    Map<String, dynamic>>>(
+              stream:
+                  _pendingWithdrawalsStream(),
+              builder: (
+                context,
+                snapshot,
+              ) {
+                final count =
+                    snapshot.data?.docs.length ??
+                        0;
+
+                return _dashboardTile(
+                  icon:
+                      Icons.pending_actions,
+                  title:
+                      'Withdraw Requests',
+                  subtitle: count == 0
+                      ? 'কোনো pending request নেই'
+                      : '$count টি pending request',
+                  trailing: count > 0
+                      ? CircleAvatar(
+                          radius: 14,
+                          child: Text(
+                            '$count',
+                            style:
+                                const TextStyle(
+                              fontSize: 11,
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                        )
+                      : null,
+                  onTap: () {
+                    _openPage(
+                      const AdminWithdrawScreen(),
+                    );
+                  },
+                );
+              },
+            ),
+
+            const SizedBox(height: 10),
+
+            _dashboardTile(
+              icon: Icons.payments,
+              title: 'Manage Withdrawals',
+              subtitle:
+                  'Approve অথবা Reject করুন',
+              onTap: () {
+                _openPage(
+                  const AdminWithdrawScreen(),
+                );
+              },
+            ),
+
+            const SizedBox(height: 10),
+
+            // ==================================================
+            // REPORTS
+            // ==================================================
+
+            _dashboardTile(
+              icon: Icons.flag_outlined,
+              title: 'Admin Reports',
+              subtitle:
+                  'User Report এবং Post Report পরিচালনা করুন',
+              onTap: () {
+                _openPage(
+                  const AdminReportsScreen(),
+                );
+              },
+            ),
+
+            const SizedBox(height: 10),
+
+            // ==================================================
+            // NOTIFICATIONS
+            // ==================================================
+
+            _dashboardTile(
+              icon: Icons.notifications_outlined,
+              title: 'Admin Notifications',
+              subtitle:
+                  'সব User-কে Notification পাঠান',
+              onTap: () {
+                _openPage(
+                  const AdminNotificationsScreen(),
+                );
+              },
+            ),
+
+            const SizedBox(height: 10),
+
+            // ==================================================
+            // SETTINGS
+            // ==================================================
+
+            _dashboardTile(
+              icon: Icons.settings_outlined,
+              title: 'Admin Settings',
+              subtitle:
+                  'App এবং Admin Settings পরিচালনা করুন',
+              onTap: () {
+                _openPage(
+                  const AdminSettingsScreen(),
+                );
+              },
+            ),
+
+            const SizedBox(height: 18),
+
+            // ==================================================
+            // SECURITY
+            // ==================================================
+
+            Card(
+              child: Padding(
+                padding:
+                    const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.security,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Admin Security',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+
+                    const SizedBox(height: 12),
+
+                    Text(
+                      'এই Dashboard-এর Admin কাজগুলো Firestore Rules-এর মাধ্যমে সুরক্ষিত রাখা হয়েছে।',
+                      style: TextStyle(
+                        color:
+                            Colors.grey.shade700,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    const Text(
+                      'Admin role: admin',
+                      style: TextStyle(
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
 
-          const SizedBox(height: 30),
-        ],
+            const SizedBox(height: 30),
+          ],
+        ),
       ),
     );
   }
 
   // ============================================================
-  // MONEY STAT
+  // QUICK MENU
   // ============================================================
 
-  Widget _moneyStat(
-    String title,
-    String value,
-    IconData icon,
+  Widget _quickMenu({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      elevation: 2,
+      child: InkWell(
+        borderRadius:
+            BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding:
+              const EdgeInsets.all(14),
+          child: Column(
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                radius: 25,
+                child: Icon(
+                  icon,
+                  size: 27,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontWeight:
+                      FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+
+              const SizedBox(height: 3),
+
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color:
+                      Colors.grey.shade600,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // USER ITEM
+  // ============================================================
+
+  Widget _userItem(
+    DocumentSnapshot<
+        Map<String, dynamic>> document,
   ) {
+    final data =
+        document.data() ?? {};
+
+    final name =
+        data['name']?.toString() ??
+            'নাম নেই';
+
+    final email =
+        data['email']?.toString() ??
+            'Email নেই';
+
+    final username =
+        data['username']?.toString() ??
+            '';
+
+    final role =
+        data['role']?.toString() ??
+            'user';
+
+    final photoUrl =
+        data['photoUrl']?.toString();
+
+    final wallet =
+        _toDouble(
+      data['wallet'],
+    );
+
+    return Card(
+      margin:
+          const EdgeInsets.only(
+        bottom: 8,
+      ),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundImage:
+              photoUrl != null &&
+                      photoUrl.isNotEmpty
+                  ? NetworkImage(photoUrl)
+                  : null,
+          child:
+              photoUrl == null ||
+                      photoUrl.isEmpty
+                  ? const Icon(
+                      Icons.person,
+                    )
+                  : null,
+        ),
+
+        title: Text(
+          name,
+          style: const TextStyle(
+            fontWeight:
+                FontWeight.bold,
+          ),
+        ),
+
+        subtitle: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Text(
+              email,
+              maxLines: 1,
+              overflow:
+                  TextOverflow.ellipsis,
+            ),
+
+            if (username.isNotEmpty)
+              Text(
+                '@$username',
+              ),
+
+            Text(
+              'Wallet: ${_money(wallet)}',
+            ),
+          ],
+        ),
+
+        isThreeLine: true,
+
+        trailing: PopupMenuButton<String>(
+          onSelected: (value) {
+            if (value == 'details') {
+              _openPage(
+                UserDetailsScreen(
+                  userId: document.id,
+                ),
+              );
+            }
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem(
+              value: 'details',
+              child: Row(
+                children: [
+                  Icon(Icons.person),
+                  SizedBox(width: 8),
+                  Text('User Details'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // POST ITEM
+  // ============================================================
+
+  Widget _postItem(
+    DocumentSnapshot<
+        Map<String, dynamic>> document,
+  ) {
+    final data =
+        document.data() ?? {};
+
+    final userName =
+        data['userName']?.toString() ??
+            'বন্ধু';
+
+    final text =
+        data['text']?.toString() ??
+            '';
+
+    final likes =
+        data['likeCount'] ?? 0;
+
+    final comments =
+        data['commentCount'] ?? 0;
+
+    final shares =
+        data['shareCount'] ?? 0;
+
+    return Card(
+      margin:
+          const EdgeInsets.only(
+        bottom: 8,
+      ),
+      child: ListTile(
+        leading:
+            const CircleAvatar(
+          child: Icon(
+            Icons.article,
+          ),
+        ),
+
+        title: Text(
+          userName,
+          style:
+              const TextStyle(
+            fontWeight:
+                FontWeight.bold,
+          ),
+        ),
+
+        subtitle: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Text(
+              text.isEmpty
+                  ? 'কোনো Text নেই'
+                  : text,
+              maxLines: 2,
+              overflow:
+                  TextOverflow.ellipsis,
+            ),
+
+            const SizedBox(height: 5),
+
+            Text(
+              '👍 $likes   💬 $comments   ↗ $shares',
+            ),
+          ],
+        ),
+
+        isThreeLine: true,
+
+        trailing: PopupMenuButton<String>(
+          onSelected: (value) {
+            if (value == 'details') {
+              _openPage(
+                PostDetailsScreen(
+                  postId: document.id,
+                ),
+              );
+            }
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem(
+              value: 'details',
+              child: Row(
+                children: [
+                  Icon(Icons.article),
+                  SizedBox(width: 8),
+                  Text('Post Details'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // SMALL STAT
+  // ============================================================
+
+  Widget _smallStat({
+    required String title,
+    required String value,
+    required IconData icon,
+  }) {
     return Column(
       children: [
-
         Icon(
           icon,
-          size: 24,
+          size: 25,
         ),
 
         const SizedBox(height: 5),
 
         Text(
           title,
-          style: const TextStyle(
+          style:
+              const TextStyle(
             fontSize: 12,
           ),
         ),
@@ -544,8 +1119,9 @@ class _AdminDashboardScreenState
 
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 14,
+          style:
+              const TextStyle(
+            fontSize: 15,
             fontWeight:
                 FontWeight.bold,
           ),
@@ -555,638 +1131,50 @@ class _AdminDashboardScreenState
   }
 
   // ============================================================
-  // CONTROL TILE
+  // DASHBOARD TILE
   // ============================================================
 
-  Widget _controlTile({
+  Widget _dashboardTile({
     required IconData icon,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
-    String? badge,
+    Widget? trailing,
   }) {
     return Card(
-      elevation: 2,
       child: ListTile(
         contentPadding:
             const EdgeInsets.symmetric(
           horizontal: 16,
-          vertical: 8,
+          vertical: 5,
         ),
 
         leading: CircleAvatar(
-          radius: 25,
           child: Icon(
             icon,
-            size: 25,
           ),
         ),
 
         title: Text(
           title,
-          style: const TextStyle(
-            fontSize: 16,
+          style:
+              const TextStyle(
             fontWeight:
                 FontWeight.bold,
           ),
         ),
 
-        subtitle: Padding(
-          padding:
-              const EdgeInsets.only(top: 4),
-          child: Text(
-            subtitle,
-          ),
+        subtitle: Text(
+          subtitle,
         ),
 
-        trailing: badge != null
-            ? Row(
-                mainAxisSize:
-                    MainAxisSize.min,
-                children: [
-
-                  Container(
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
-                      horizontal: 9,
-                      vertical: 5,
-                    ),
-                    decoration:
-                        BoxDecoration(
-                      borderRadius:
-                          BorderRadius.circular(
-                        15,
-                      ),
-                      border:
-                          Border.all(
-                        color:
-                            Colors.orange,
-                      ),
-                    ),
-                    child: Text(
-                      badge,
-                      style:
-                          const TextStyle(
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 8),
-
-                  const Icon(
-                    Icons
-                        .arrow_forward_ios,
-                    size: 16,
-                  ),
-                ],
-              )
-            : const Icon(
-                Icons.arrow_forward_ios,
-                size: 17,
-              ),
+        trailing: trailing ??
+            const Icon(
+              Icons.arrow_forward_ios,
+              size: 18,
+            ),
 
         onTap: onTap,
-      ),
-    );
-  }
-}
-
-// ============================================================
-// USERS MANAGEMENT SCREEN
-// ============================================================
-
-class UsersManagementScreen
-    extends StatelessWidget {
-  const UsersManagementScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Users Management',
-        ),
-      ),
-      body: StreamBuilder<
-          QuerySnapshot<
-              Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .snapshots(),
-        builder: (
-          context,
-          snapshot,
-        ) {
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child:
-                  CircularProgressIndicator(),
-            );
-          }
-
-          final users =
-              snapshot.data?.docs ?? [];
-
-          if (users.isEmpty) {
-            return const Center(
-              child: Text(
-                'কোনো User পাওয়া যায়নি।',
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding:
-                const EdgeInsets.all(12),
-            itemCount: users.length,
-            itemBuilder: (
-              context,
-              index,
-            ) {
-              final data =
-                  users[index].data();
-
-              final name =
-                  data['name']
-                          ?.toString() ??
-                      'নাম নেই';
-
-              final email =
-                  data['email']
-                          ?.toString() ??
-                      'Email নেই';
-
-              final role =
-                  data['role']
-                          ?.toString() ??
-                      'user';
-
-              return Card(
-                child: ListTile(
-                  leading:
-                      const CircleAvatar(
-                    child:
-                        Icon(Icons.person),
-                  ),
-                  title: Text(
-                    name,
-                    style:
-                        const TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-                  subtitle:
-                      Text(email),
-                  trailing: Text(
-                    role,
-                    style:
-                        const TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-// ============================================================
-// POSTS MANAGEMENT SCREEN
-// ============================================================
-
-class PostsManagementScreen
-    extends StatelessWidget {
-  const PostsManagementScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Posts Management',
-        ),
-      ),
-      body: StreamBuilder<
-          QuerySnapshot<
-              Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('posts')
-            .snapshots(),
-        builder: (
-          context,
-          snapshot,
-        ) {
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child:
-                  CircularProgressIndicator(),
-            );
-          }
-
-          final posts =
-              snapshot.data?.docs ?? [];
-
-          if (posts.isEmpty) {
-            return const Center(
-              child: Text(
-                'কোনো Post নেই।',
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding:
-                const EdgeInsets.all(12),
-            itemCount: posts.length,
-            itemBuilder: (
-              context,
-              index,
-            ) {
-              final data =
-                  posts[index].data();
-
-              final userName =
-                  data['userName']
-                          ?.toString() ??
-                      'বন্ধু';
-
-              final text =
-                  data['text']
-                          ?.toString() ??
-                      '';
-
-              final likes =
-                  data['likeCount'] ?? 0;
-
-              final comments =
-                  data['commentCount'] ?? 0;
-
-              return Card(
-                child: Padding(
-                  padding:
-                      const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-
-                      Text(
-                        userName,
-                        style:
-                            const TextStyle(
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(
-                        height: 8,
-                      ),
-
-                      Text(
-                        text.isEmpty
-                            ? 'কোনো Text নেই'
-                            : text,
-                      ),
-
-                      const SizedBox(
-                        height: 8,
-                      ),
-
-                      Text(
-                        '👍 $likes   💬 $comments',
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-// ============================================================
-// APP STATISTICS SCREEN
-// ============================================================
-
-class AppStatisticsScreen
-    extends StatelessWidget {
-  const AppStatisticsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'App Statistics',
-        ),
-      ),
-      body: ListView(
-        padding:
-            const EdgeInsets.all(16),
-        children: [
-
-          StreamBuilder<
-              QuerySnapshot<
-                  Map<String, dynamic>>>(
-            stream:
-                FirebaseFirestore.instance
-                    .collection('users')
-                    .snapshots(),
-            builder: (
-              context,
-              snapshot,
-            ) {
-              final count =
-                  snapshot.data?.docs.length ??
-                      0;
-
-              return _statCard(
-                icon: Icons.people,
-                title: 'Total Users',
-                value: '$count',
-              );
-            },
-          ),
-
-          const SizedBox(height: 12),
-
-          StreamBuilder<
-              QuerySnapshot<
-                  Map<String, dynamic>>>(
-            stream:
-                FirebaseFirestore.instance
-                    .collection('posts')
-                    .snapshots(),
-            builder: (
-              context,
-              snapshot,
-            ) {
-              final count =
-                  snapshot.data?.docs.length ??
-                      0;
-
-              return _statCard(
-                icon: Icons.article,
-                title: 'Total Posts',
-                value: '$count',
-              );
-            },
-          ),
-
-          const SizedBox(height: 12),
-
-          StreamBuilder<
-              QuerySnapshot<
-                  Map<String, dynamic>>>(
-            stream:
-                FirebaseFirestore.instance
-                    .collection(
-                      'withdraw_requests',
-                    )
-                    .snapshots(),
-            builder: (
-              context,
-              snapshot,
-            ) {
-              final count =
-                  snapshot.data?.docs.length ??
-                      0;
-
-              return _statCard(
-                icon: Icons.payments,
-                title: 'Withdraw Requests',
-                value: '$count',
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statCard({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Card(
-      child: ListTile(
-        leading:
-            CircleAvatar(
-          child: Icon(icon),
-        ),
-        title: Text(
-          title,
-          style:
-              const TextStyle(
-            fontWeight:
-                FontWeight.bold,
-          ),
-        ),
-        trailing: Text(
-          value,
-          style:
-              const TextStyle(
-            fontSize: 22,
-            fontWeight:
-                FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================
-// ADMIN SECURITY SCREEN
-// ============================================================
-
-class AdminSecurityScreen
-    extends StatelessWidget {
-  const AdminSecurityScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Admin Security',
-        ),
-      ),
-      body: ListView(
-        padding:
-            const EdgeInsets.all(16),
-        children: [
-
-          Card(
-            child: ListTile(
-              leading:
-                  const Icon(
-                Icons.verified_user,
-              ),
-              title: const Text(
-                'Admin Access',
-              ),
-              subtitle: const Text(
-                'Admin account-এর জন্য Dashboard access সক্রিয়।',
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          Card(
-            child: ListTile(
-              leading:
-                  const Icon(
-                Icons.security,
-              ),
-              title: const Text(
-                'Firestore Security',
-              ),
-              subtitle: const Text(
-                'Firestore Rules দিয়ে Admin data সুরক্ষিত রাখুন।',
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          Card(
-            child: ListTile(
-              leading:
-                  const Icon(
-                Icons.email,
-              ),
-              title: const Text(
-                'Admin Email',
-              ),
-              subtitle: const Text(
-                'md.mojidul.haque.1234@gmail.com',
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================
-// APP SETTINGS SCREEN
-// ============================================================
-
-class AppSettingsScreen
-    extends StatelessWidget {
-  const AppSettingsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'App Settings',
-        ),
-      ),
-      body: ListView(
-        padding:
-            const EdgeInsets.all(16),
-        children: [
-
-          Card(
-            child: ListTile(
-              leading:
-                  const Icon(
-                Icons.settings,
-              ),
-              title: const Text(
-                'General Settings',
-              ),
-              subtitle: const Text(
-                'অ্যাপের সাধারণ Settings',
-              ),
-              onTap: () {
-                _showMessage(
-                  context,
-                  'General Settings পরে যোগ করা হবে।',
-                );
-              },
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          Card(
-            child: ListTile(
-              leading:
-                  const Icon(
-                Icons.attach_money,
-              ),
-              title: const Text(
-                'Earning Settings',
-              ),
-              subtitle: const Text(
-                'User earning এবং Admin revenue settings',
-              ),
-              onTap: () {
-                _showMessage(
-                  context,
-                  'Earning Settings পরে যোগ করা হবে।',
-                );
-              },
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          Card(
-            child: ListTile(
-              leading:
-                  const Icon(
-                Icons.notifications,
-              ),
-              title: const Text(
-                'Notification Settings',
-              ),
-              subtitle: const Text(
-                'App notification settings',
-              ),
-              onTap: () {
-                _showMessage(
-                  context,
-                  'Notification Settings পরে যোগ করা হবে।',
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showMessage(
-    BuildContext context,
-    String message,
-  ) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(message),
       ),
     );
   }
