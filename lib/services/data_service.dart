@@ -18,9 +18,6 @@ class DataService {
   CollectionReference<Map<String, dynamic>> get _posts =>
       _firestore.collection('posts');
 
-  CollectionReference<Map<String, dynamic>> get _withdrawals =>
-      _firestore.collection('withdrawalRequests');
-
   User? get currentUser => _auth.currentUser;
 
   // ============================================================
@@ -72,7 +69,8 @@ class DataService {
     }
 
     if (username != null) {
-      data['username'] = username.trim().toLowerCase();
+      data['username'] =
+          username.trim().toLowerCase();
     }
 
     if (photoUrl != null) {
@@ -80,7 +78,8 @@ class DataService {
     }
 
     if (coverPhotoUrl != null) {
-      data['coverPhotoUrl'] = coverPhotoUrl;
+      data['coverPhotoUrl'] =
+          coverPhotoUrl;
     }
 
     await _users.doc(user.uid).set(
@@ -90,220 +89,244 @@ class DataService {
   }
 
   // ============================================================
-  // WALLET
+  // INITIALIZE USER
   // ============================================================
 
-  Stream<DocumentSnapshot<Map<String, dynamic>>> walletStream() {
+  Future<void> initializeUser() async {
     final user = _auth.currentUser;
 
     if (user == null) {
-      return Stream.error(
-        Exception('প্রথমে লগইন করুন।'),
-      );
+      throw Exception('প্রথমে লগইন করুন।');
+    }
+
+    final userRef = _users.doc(user.uid);
+
+    final snapshot = await userRef.get();
+
+    final existing = snapshot.data() ?? {};
+
+    final data = <String, dynamic>{
+      'name': existing['name'] ??
+          user.displayName ??
+          'বন্ধু',
+
+      'email': existing['email'] ??
+          user.email,
+
+      'photoUrl': existing['photoUrl'] ??
+          user.photoURL,
+
+      'balance':
+          existing['balance'] ?? 0.0,
+
+      'totalIncome':
+          existing['totalIncome'] ?? 0.0,
+
+      'totalWithdraw':
+          existing['totalWithdraw'] ?? 0.0,
+
+      'referralCode':
+          existing['referralCode'] ??
+              user.uid.substring(
+                0,
+                user.uid.length > 8
+                    ? 8
+                    : user.uid.length,
+              ),
+
+      'referredBy':
+          existing['referredBy'] ?? '',
+
+      'verifiedCreator':
+          existing['verifiedCreator'] ??
+              false,
+
+      'earningEnabled':
+          existing['earningEnabled'] ??
+              false,
+
+      'followersCount':
+          existing['followersCount'] ?? 0,
+
+      'followingCount':
+          existing['followingCount'] ?? 0,
+
+      'postCount':
+          existing['postCount'] ?? 0,
+
+      'updatedAt':
+          FieldValue.serverTimestamp(),
+    };
+
+    if (!snapshot.exists) {
+      data['createdAt'] =
+          FieldValue.serverTimestamp();
+    }
+
+    await userRef.set(
+      data,
+      SetOptions(merge: true),
+    );
+  }
+
+  // ============================================================
+  // WALLET
+  // ============================================================
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>>
+      walletStream() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      return const Stream.empty();
     }
 
     return _users.doc(user.uid).snapshots();
   }
 
-  Future<Map<String, num>> getWallet() async {
+  Future<double> getBalance() async {
     final user = _auth.currentUser;
 
     if (user == null) {
-      throw Exception('প্রথমে লগইন করুন।');
+      throw Exception('লগইন করুন।');
     }
 
-    final snapshot = await _users.doc(user.uid).get();
-    final data = snapshot.data() ?? {};
+    final doc =
+        await _users.doc(user.uid).get();
 
-    final wallet =
-        data['wallet'] as Map<String, dynamic>? ?? {};
+    final data = doc.data() ?? {};
 
-    final balance =
-        (wallet['balance'] as num?) ?? 0;
+    return (data['balance'] as num?)
+            ?.toDouble() ??
+        0.0;
+  }
 
-    final totalEarned =
-        (wallet['totalEarned'] as num?) ?? 0;
+  Future<Map<String, double>>
+      getWalletSummary() async {
+    final user = _auth.currentUser;
 
-    final totalWithdrawn =
-        (wallet['totalWithdrawn'] as num?) ?? 0;
+    if (user == null) {
+      throw Exception('লগইন করুন।');
+    }
+
+    final doc =
+        await _users.doc(user.uid).get();
+
+    final data = doc.data() ?? {};
 
     return {
-      'balance': balance,
-      'totalEarned': totalEarned,
-      'totalWithdrawn': totalWithdrawn,
+      'balance':
+          (data['balance'] as num?)
+                  ?.toDouble() ??
+              0.0,
+
+      'totalIncome':
+          (data['totalIncome'] as num?)
+                  ?.toDouble() ??
+              0.0,
+
+      'totalWithdraw':
+          (data['totalWithdraw'] as num?)
+                  ?.toDouble() ??
+              0.0,
     };
   }
 
   // ============================================================
-  // TRANSACTION HISTORY
+  // ADD INCOME
   // ============================================================
 
-  Stream<QuerySnapshot<Map<String, dynamic>>>
-      transactionHistoryStream() {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      return Stream.error(
-        Exception('প্রথমে লগইন করুন।'),
-      );
-    }
-
-    return _users
-        .doc(user.uid)
-        .collection('transactions')
-        .orderBy(
-          'createdAt',
-          descending: true,
-        )
-        .snapshots();
-  }
-
-  Future<QuerySnapshot<Map<String, dynamic>>>
-      getTransactionHistory() async {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      throw Exception('প্রথমে লগইন করুন।');
-    }
-
-    return _users
-        .doc(user.uid)
-        .collection('transactions')
-        .orderBy(
-          'createdAt',
-          descending: true,
-        )
-        .limit(100)
-        .get();
-  }
-
-  // ============================================================
-  // WITHDRAWAL
-  // ============================================================
-
-  Stream<QuerySnapshot<Map<String, dynamic>>>
-      withdrawalRequestsStream() {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      return Stream.error(
-        Exception('প্রথমে লগইন করুন।'),
-      );
-    }
-
-    return _withdrawals
-        .where('userId', isEqualTo: user.uid)
-        .orderBy(
-          'createdAt',
-          descending: true,
-        )
-        .snapshots();
-  }
-
-  Future<void> requestWithdrawal({
-    required num amount,
-    required String method,
-    required String accountNumber,
+  Future<void> addBalance({
+    required String userId,
+    required double amount,
+    String reason = 'Income',
   }) async {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      throw Exception('প্রথমে লগইন করুন।');
-    }
-
     if (amount <= 0) {
       throw Exception(
-        'সঠিক Withdrawal amount দিন।',
+        'Income amount সঠিক নয়।',
       );
     }
 
-    final cleanMethod = method.trim();
+    final userRef =
+        _users.doc(userId);
 
-    final cleanAccount =
-        accountNumber.trim();
-
-    if (cleanMethod.isEmpty) {
-      throw Exception(
-        'Payment method নির্বাচন করুন।',
-      );
-    }
-
-    if (cleanAccount.isEmpty) {
-      throw Exception(
-        'Payment account দিন।',
-      );
-    }
-
-    final userRef = _users.doc(user.uid);
-
-    final withdrawalRef =
-        _withdrawals.doc();
-
-    final transactionRef = userRef
-        .collection('transactions')
-        .doc();
+    final incomeRef =
+        userRef.collection('income').doc();
 
     await _firestore.runTransaction(
       (transaction) async {
         final userSnapshot =
-            await transaction.get(userRef);
+            await transaction.get(
+          userRef,
+        );
 
         if (!userSnapshot.exists) {
           throw Exception(
-            'User account পাওয়া যায়নি।',
+            'User পাওয়া যায়নি।',
           );
         }
 
-        final userData =
+        final data =
             userSnapshot.data() ?? {};
 
-        final wallet =
-            userData['wallet']
-                    as Map<String, dynamic>? ??
-                {};
-
-        final balance =
-            (wallet['balance'] as num?)
+        final currentBalance =
+            (data['balance'] as num?)
                     ?.toDouble() ??
-                0;
+                0.0;
 
-        if (amount.toDouble() > balance) {
-          throw Exception(
-            'আপনার Wallet balance যথেষ্ট নয়।',
-          );
-        }
+        final totalIncome =
+            (data['totalIncome'] as num?)
+                    ?.toDouble() ??
+                0.0;
 
-        transaction.set(
-          withdrawalRef,
+        transaction.update(
+          userRef,
           {
-            'userId': user.uid,
-            'amount': amount,
-            'method': cleanMethod,
-            'accountNumber': cleanAccount,
-            'status': 'pending',
-            'createdAt':
-                FieldValue.serverTimestamp(),
+            'balance':
+                currentBalance + amount,
+
+            'totalIncome':
+                totalIncome + amount,
+
             'updatedAt':
                 FieldValue.serverTimestamp(),
           },
         );
 
         transaction.set(
-          transactionRef,
+          incomeRef,
           {
-            'type': 'withdrawal',
-            'amount': -amount,
-            'description':
-                'Withdrawal request',
-            'status': 'pending',
-            'withdrawalId':
-                withdrawalRef.id,
+            'userId': userId,
+            'amount': amount,
+            'reason': reason,
             'createdAt':
                 FieldValue.serverTimestamp(),
           },
         );
       },
     );
+  }
+
+  // ============================================================
+  // INCOME HISTORY
+  // ============================================================
+
+  Stream<QuerySnapshot<Map<String, dynamic>>>
+      incomeStream() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      return const Stream.empty();
+    }
+
+    return _users
+        .doc(user.uid)
+        .collection('income')
+        .orderBy(
+          'createdAt',
+          descending: true,
+        )
+        .snapshots();
   }
 
   // ============================================================
@@ -325,7 +348,8 @@ class DataService {
     required String text,
     String? imageUrl,
   }) async {
-    final user = _auth.currentUser;
+    final user =
+        _auth.currentUser;
 
     if (user == null) {
       throw Exception(
@@ -341,25 +365,51 @@ class DataService {
 
     final post = <String, dynamic>{
       'userId': user.uid,
+
       'userName':
           userData?['name'] ??
               user.displayName ??
               'বন্ধু',
+
       'userPhotoUrl':
           userData?['photoUrl'] ??
               user.photoURL,
+
       'text': text.trim(),
+
       'imageUrl': imageUrl,
+
+      // Counters
       'likeCount': 0,
       'commentCount': 0,
       'shareCount': 0,
+
+      // Monetization preparation
+      'postViews': 0,
+      'earning': 0.0,
+
       'createdAt':
           FieldValue.serverTimestamp(),
+
       'updatedAt':
           FieldValue.serverTimestamp(),
     };
 
-    return _posts.add(post);
+    final postRef =
+        await _posts.add(post);
+
+    // Update user's post count
+    await _users.doc(user.uid).set(
+      {
+        'postCount':
+            FieldValue.increment(1),
+        'updatedAt':
+            FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    return postRef;
   }
 
   Future<void> updatePost({
@@ -367,7 +417,8 @@ class DataService {
     required String text,
     String? imageUrl,
   }) async {
-    final user = _auth.currentUser;
+    final user =
+        _auth.currentUser;
 
     if (user == null) {
       throw Exception(
@@ -429,7 +480,10 @@ class DataService {
       );
     }
 
-    if (post.data()?['userId'] !=
+    final postData =
+        post.data() ?? {};
+
+    if (postData['userId'] !=
         user.uid) {
       throw Exception(
         'এই Post মুছে ফেলার অনুমতি নেই।',
@@ -437,6 +491,87 @@ class DataService {
     }
 
     await postRef.delete();
+
+    await _users.doc(user.uid).set(
+      {
+        'postCount':
+            FieldValue.increment(-1),
+        'updatedAt':
+            FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  // ============================================================
+  // POST VIEW
+  // ============================================================
+
+  Future<void> viewPost(
+    String postId,
+  ) async {
+    final user =
+        _auth.currentUser;
+
+    if (user == null) {
+      return;
+    }
+
+    final postRef =
+        _posts.doc(postId);
+
+    final viewRef = postRef
+        .collection('views')
+        .doc(user.uid);
+
+    await _firestore.runTransaction(
+      (transaction) async {
+        final viewSnapshot =
+            await transaction.get(
+          viewRef,
+        );
+
+        if (viewSnapshot.exists) {
+          return;
+        }
+
+        final postSnapshot =
+            await transaction.get(
+          postRef,
+        );
+
+        if (!postSnapshot.exists) {
+          return;
+        }
+
+        final data =
+            postSnapshot.data() ?? {};
+
+        final currentViews =
+            (data['postViews'] as num?)
+                    ?.toInt() ??
+                0;
+
+        transaction.set(
+          viewRef,
+          {
+            'userId': user.uid,
+            'createdAt':
+                FieldValue.serverTimestamp(),
+          },
+        );
+
+        transaction.update(
+          postRef,
+          {
+            'postViews':
+                currentViews + 1,
+            'updatedAt':
+                FieldValue.serverTimestamp(),
+          },
+        );
+      },
+    );
   }
 
   // ============================================================
@@ -479,10 +614,9 @@ class DataService {
     final postRef =
         _posts.doc(postId);
 
-    final likeRef =
-        postRef
-            .collection('likes')
-            .doc(user.uid);
+    final likeRef = postRef
+        .collection('likes')
+        .doc(user.uid);
 
     await _firestore.runTransaction(
       (transaction) async {
@@ -627,8 +761,7 @@ class DataService {
                 ?? {};
 
         final currentCount =
-            (postData[
-                        'commentCount']
+            (postData['commentCount']
                     as num?)
                 ?.toInt() ??
             0;
@@ -637,17 +770,20 @@ class DataService {
           commentRef,
           {
             'userId': user.uid,
+
             'userName':
                 userData?['name'] ??
                     user.displayName ??
                     'বন্ধু',
+
             'userPhotoUrl':
                 userData?['photoUrl'] ??
                     user.photoURL,
+
             'text': cleanText,
+
             'createdAt':
-                FieldValue
-                    .serverTimestamp(),
+                FieldValue.serverTimestamp(),
           },
         );
 
@@ -657,8 +793,7 @@ class DataService {
             'commentCount':
                 currentCount + 1,
             'updatedAt':
-                FieldValue
-                    .serverTimestamp(),
+                FieldValue.serverTimestamp(),
           },
         );
       },
@@ -672,4 +807,214 @@ class DataService {
     final user =
         _auth.currentUser;
 
-   
+    if (user == null) {
+      throw Exception(
+        'প্রথমে লগইন করুন।',
+      );
+    }
+
+    final postRef =
+        _posts.doc(postId);
+
+    final commentRef =
+        postRef
+            .collection('comments')
+            .doc(commentId);
+
+    await _firestore.runTransaction(
+      (transaction) async {
+        final commentSnapshot =
+            await transaction.get(
+          commentRef,
+        );
+
+        if (!commentSnapshot.exists) {
+          throw Exception(
+            'Comment পাওয়া যায়নি।',
+          );
+        }
+
+        final commentData =
+            commentSnapshot.data()
+                ?? {};
+
+        if (commentData['userId'] !=
+            user.uid) {
+          throw Exception(
+            'এই Comment মুছে ফেলার অনুমতি নেই।',
+          );
+        }
+
+        final postSnapshot =
+            await transaction.get(
+          postRef,
+        );
+
+        final postData =
+            postSnapshot.data()
+                ?? {};
+
+        final currentCount =
+            (postData['commentCount']
+                    as num?)
+                ?.toInt() ??
+            0;
+
+        transaction.delete(
+          commentRef,
+        );
+
+        transaction.update(
+          postRef,
+          {
+            'commentCount':
+                currentCount > 0
+                    ? currentCount - 1
+                    : 0,
+            'updatedAt':
+                FieldValue.serverTimestamp(),
+          },
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // SHARE
+  // ============================================================
+
+  Stream<bool> shareStatusStream(
+    String postId,
+  ) {
+    final user =
+        _auth.currentUser;
+
+    if (user == null) {
+      return Stream.value(false);
+    }
+
+    return _posts
+        .doc(postId)
+        .collection('shares')
+        .doc(user.uid)
+        .snapshots()
+        .map(
+          (snapshot) =>
+              snapshot.exists,
+        );
+  }
+
+  Future<void> sharePost(
+    String postId,
+  ) async {
+    final user =
+        _auth.currentUser;
+
+    if (user == null) {
+      throw Exception(
+        'Share করতে লগইন করুন।',
+      );
+    }
+
+    final postRef =
+        _posts.doc(postId);
+
+    final shareRef = postRef
+        .collection('shares')
+        .doc(user.uid);
+
+    await _firestore.runTransaction(
+      (transaction) async {
+        final postSnapshot =
+            await transaction.get(
+          postRef,
+        );
+
+        if (!postSnapshot.exists) {
+          throw Exception(
+            'Post পাওয়া যায়নি।',
+          );
+        }
+
+        final shareSnapshot =
+            await transaction.get(
+          shareRef,
+        );
+
+        final postData =
+            postSnapshot.data()
+                ?? {};
+
+        final currentCount =
+            (postData['shareCount']
+                    as num?)
+                ?.toInt() ??
+            0;
+
+        if (shareSnapshot.exists) {
+          transaction.delete(
+            shareRef,
+          );
+
+          transaction.update(
+            postRef,
+            {
+              'shareCount':
+                  currentCount > 0
+                      ? currentCount - 1
+                      : 0,
+              'updatedAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
+        } else {
+          transaction.set(
+            shareRef,
+            {
+              'userId': user.uid,
+              'createdAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
+
+          transaction.update(
+            postRef,
+            {
+              'shareCount':
+                  currentCount + 1,
+              'updatedAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
+        }
+      },
+    );
+  }
+
+  // ============================================================
+  // SEARCH USERS
+  // ============================================================
+
+  Future<QuerySnapshot<Map<String, dynamic>>>
+      searchUsers(
+    String text,
+  ) async {
+    final query =
+        text.trim();
+
+    if (query.isEmpty) {
+      return _users
+          .limit(20)
+          .get();
+    }
+
+    return _users
+        .orderBy('name')
+        .startAt([query])
+        .endAt([
+          '$query\uf8ff',
+        ])
+        .limit(20)
+        .get();
+  }
+}
