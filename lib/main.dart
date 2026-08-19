@@ -76,6 +76,17 @@ class AuthGate extends StatelessWidget {
 class UserRoleGate extends StatelessWidget {
   const UserRoleGate({super.key});
 
+  // ============================================================
+  // ADMIN EMAIL
+  // ============================================================
+
+  static const String adminEmail =
+      'md.mojidul.haque.1234@gmail.com';
+
+  // ============================================================
+  // CHECK ADMIN
+  // ============================================================
+
   Future<bool> _isAdmin() async {
     final user =
         FirebaseAuth.instance.currentUser;
@@ -84,20 +95,50 @@ class UserRoleGate extends StatelessWidget {
       return false;
     }
 
-    final document =
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
+    // ----------------------------------------------------------
+    // প্রথমে Admin Email Check
+    // ----------------------------------------------------------
 
-    if (!document.exists) {
-      return false;
+    final email =
+        user.email?.trim().toLowerCase();
+
+    if (email == adminEmail.toLowerCase()) {
+      return true;
     }
 
-    final data = document.data();
+    // ----------------------------------------------------------
+    // তারপর Firestore Role Check
+    // ----------------------------------------------------------
 
-    return data?['role'] == 'admin';
+    try {
+      final document =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+
+      if (!document.exists) {
+        return false;
+      }
+
+      final data =
+          document.data();
+
+      final role =
+          data?['role']
+              ?.toString()
+              .trim()
+              .toLowerCase();
+
+      return role == 'admin';
+    } catch (_) {
+      return false;
+    }
   }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -122,6 +163,10 @@ class UserRoleGate extends StatelessWidget {
   }
 }
 
+// ================================================================
+// SPLASH SCREEN
+// ================================================================
+
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
@@ -134,12 +179,15 @@ class SplashScreen extends StatelessWidget {
           mainAxisAlignment:
               MainAxisAlignment.center,
           children: [
+
             Icon(
               Icons.people_alt_rounded,
               size: 85,
               color: Colors.blue,
             ),
+
             SizedBox(height: 20),
+
             Text(
               'বন্ধু সোশ্যাল',
               style: TextStyle(
@@ -148,7 +196,9 @@ class SplashScreen extends StatelessWidget {
                     FontWeight.bold,
               ),
             ),
+
             SizedBox(height: 25),
+
             CircularProgressIndicator(),
           ],
         ),
