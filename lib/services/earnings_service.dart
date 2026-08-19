@@ -4,14 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 class EarningsService {
   EarningsService._();
 
-  static final EarningsService instance =
-      EarningsService._();
+  static final EarningsService instance = EarningsService._();
 
-  final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance;
-
-  final FirebaseAuth _auth =
-      FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // ============================================================
   // COLLECTIONS
@@ -23,6 +19,9 @@ class EarningsService {
   CollectionReference<Map<String, dynamic>> get _transactions =>
       _firestore.collection('transactions');
 
+  CollectionReference<Map<String, dynamic>> get _withdrawRequests =>
+      _firestore.collection('withdraw_requests');
+
   DocumentReference<Map<String, dynamic>> get _ownerWallet =>
       _firestore.collection('settings').doc('owner_wallet');
 
@@ -31,6 +30,8 @@ class EarningsService {
   // ============================================================
 
   User? get currentUser => _auth.currentUser;
+
+  String? get currentUserId => _auth.currentUser?.uid;
 
   // ============================================================
   // USER WALLET
@@ -52,63 +53,45 @@ class EarningsService {
     final user = _auth.currentUser;
 
     if (user == null) {
-      throw Exception(
-        'প্রথমে লগইন করুন।',
-      );
+      throw Exception('প্রথমে লগইন করুন।');
     }
 
-    final snapshot =
-        await _users.doc(user.uid).get();
-
-    final data =
-        snapshot.data() ?? {};
+    final snapshot = await _users.doc(user.uid).get();
+    final data = snapshot.data() ?? {};
 
     return {
-      'balance':
-          (data['balance'] as num?)?.toDouble() ?? 0.0,
-      'totalEarned':
-          (data['totalEarned'] as num?)?.toDouble() ?? 0.0,
-      'totalWithdrawn':
-          (data['totalWithdrawn'] as num?)?.toDouble() ?? 0.0,
+      'balance': _toDouble(data['balance']),
+      'totalEarned': _toDouble(data['totalEarned']),
+      'totalWithdrawn': _toDouble(data['totalWithdrawn']),
     };
   }
 
   // ============================================================
-  // CREATE WALLET
+  // CREATE USER WALLET
   // ============================================================
 
   Future<void> createWalletIfNeeded() async {
     final user = _auth.currentUser;
 
     if (user == null) {
-      throw Exception(
-        'প্রথমে লগইন করুন।',
-      );
+      throw Exception('প্রথমে লগইন করুন।');
     }
 
-    final userRef =
-        _users.doc(user.uid);
+    final userRef = _users.doc(user.uid);
+    final snapshot = await userRef.get();
 
-    final snapshot =
-        await userRef.get();
-
-    final data =
-        snapshot.data();
+    final data = snapshot.data();
 
     if (data == null) {
       await userRef.set(
         {
-          'name':
-              user.displayName ?? 'বন্ধু',
-          'email':
-              user.email ?? '',
+          'name': user.displayName ?? 'বন্ধু',
+          'email': user.email ?? '',
           'balance': 0.0,
           'totalEarned': 0.0,
           'totalWithdrawn': 0.0,
-          'createdAt':
-              FieldValue.serverTimestamp(),
-          'updatedAt':
-              FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
         },
         SetOptions(merge: true),
       );
@@ -116,8 +99,7 @@ class EarningsService {
       return;
     }
 
-    final updates =
-        <String, dynamic>{};
+    final updates = <String, dynamic>{};
 
     if (!data.containsKey('balance')) {
       updates['balance'] = 0.0;
@@ -132,10 +114,12 @@ class EarningsService {
     }
 
     if (updates.isNotEmpty) {
-      updates['updatedAt'] =
-          FieldValue.serverTimestamp();
+      updates['updatedAt'] = FieldValue.serverTimestamp();
 
-      await userRef.update(updates);
+      await userRef.set(
+        updates,
+        SetOptions(merge: true),
+      );
     }
   }
 
@@ -148,29 +132,34 @@ class EarningsService {
     return _ownerWallet.snapshots();
   }
 
+  Future<Map<String, dynamic>> getOwnerWallet() async {
+    final snapshot = await _ownerWallet.get();
+
+    final data = snapshot.data() ?? {};
+
+    return {
+      'balance': _toDouble(data['balance']),
+      'totalEarned': _toDouble(data['totalEarned']),
+      'totalPaidToUsers': _toDouble(data['totalPaidToUsers']),
+    };
+  }
+
   Future<void> createOwnerWalletIfNeeded() async {
-    final snapshot =
-        await _ownerWallet.get();
+    final snapshot = await _ownerWallet.get();
 
     if (!snapshot.exists) {
-      await _ownerWallet.set(
-        {
-          'balance': 0.0,
-          'totalEarned': 0.0,
-          'totalPaidToUsers': 0.0,
-          'updatedAt':
-              FieldValue.serverTimestamp(),
-        },
-      );
+      await _ownerWallet.set({
+        'balance': 0.0,
+        'totalEarned': 0.0,
+        'totalPaidToUsers': 0.0,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
       return;
     }
 
-    final data =
-        snapshot.data() ?? {};
-
-    final updates =
-        <String, dynamic>{};
+    final data = snapshot.data() ?? {};
+    final updates = <String, dynamic>{};
 
     if (!data.containsKey('balance')) {
       updates['balance'] = 0.0;
@@ -185,10 +174,12 @@ class EarningsService {
     }
 
     if (updates.isNotEmpty) {
-      updates['updatedAt'] =
-          FieldValue.serverTimestamp();
+      updates['updatedAt'] = FieldValue.serverTimestamp();
 
-      await _ownerWallet.update(updates);
+      await _ownerWallet.set(
+        updates,
+        SetOptions(merge: true),
+      );
     }
   }
 
@@ -231,102 +222,59 @@ class EarningsService {
     final user = _auth.currentUser;
 
     if (user == null) {
-      throw Exception(
-        'প্রথমে লগইন করুন।',
-      );
+      throw Exception('প্রথমে লগইন করুন।');
     }
 
-    if (amount <= 0) {
-      throw Exception(
-        'Amount অবশ্যই 0-এর বেশি হতে হবে।',
-      );
+    _validateAmount(amount);
+
+    final cleanType = type.trim();
+
+    if (cleanType.isEmpty) {
+      throw Exception('Earning type দিন।');
     }
 
-    final userRef =
-        _users.doc(user.uid);
-
-    final ownerRef =
-        _ownerWallet;
-
-    final transactionRef =
-        _transactions.doc();
+    final userRef = _users.doc(user.uid);
+    final transactionRef = _transactions.doc();
 
     await _firestore.runTransaction(
       (transaction) async {
-        final userSnapshot =
-            await transaction.get(userRef);
+        final userSnapshot = await transaction.get(userRef);
 
-        final ownerSnapshot =
-            await transaction.get(ownerRef);
+        if (!userSnapshot.exists) {
+          throw Exception('User profile পাওয়া যায়নি।');
+        }
 
-        final userData =
-            userSnapshot.data() ?? {};
+        final userData = userSnapshot.data() ?? {};
 
-        final ownerData =
-            ownerSnapshot.data() ?? {};
+        final currentBalance = _toDouble(
+          userData['balance'],
+        );
 
-        final currentBalance =
-            (userData['balance'] as num?)
-                    ?.toDouble() ??
-                0.0;
+        final currentTotalEarned = _toDouble(
+          userData['totalEarned'],
+        );
 
-        final currentTotalEarned =
-            (userData['totalEarned'] as num?)
-                    ?.toDouble() ??
-                0.0;
-
-        final ownerBalance =
-            (ownerData['balance'] as num?)
-                    ?.toDouble() ??
-                0.0;
-
-        final ownerTotalEarned =
-            (ownerData['totalEarned'] as num?)
-                    ?.toDouble() ??
-                0.0;
-
-        // User wallet
         transaction.set(
           userRef,
           {
-            'balance':
-                currentBalance + amount,
-            'totalEarned':
-                currentTotalEarned + amount,
-            'updatedAt':
-                FieldValue.serverTimestamp(),
+            'balance': currentBalance + amount,
+            'totalEarned': currentTotalEarned + amount,
+            'updatedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),
         );
 
-        // Owner wallet
-        transaction.set(
-          ownerRef,
-          {
-            'balance':
-                ownerBalance - amount,
-            'totalEarned':
-                ownerTotalEarned,
-            'updatedAt':
-                FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
-
-        // Transaction history
         transaction.set(
           transactionRef,
           {
             'userId': user.uid,
             'amount': amount,
-            'type': type,
-            'description':
-                description ?? '',
-            'referenceId':
-                referenceId,
+            'type': cleanType,
+            'description': description?.trim() ?? '',
+            'referenceId': referenceId,
             'status': 'completed',
-            'createdAt':
-                FieldValue.serverTimestamp(),
+            'transactionType': 'earning',
+            'createdAt': FieldValue.serverTimestamp(),
           },
         );
       },
@@ -343,45 +291,37 @@ class EarningsService {
     String? description,
     String? referenceId,
   }) async {
-    if (amount <= 0) {
-      throw Exception(
-        'Amount অবশ্যই 0-এর বেশি হতে হবে।',
-      );
+    _validateAmount(amount);
+
+    final cleanType = type.trim();
+
+    if (cleanType.isEmpty) {
+      throw Exception('Revenue type দিন।');
     }
 
-    final ownerRef =
-        _ownerWallet;
-
-    final transactionRef =
-        _transactions.doc();
+    final ownerRef = _ownerWallet;
+    final transactionRef = _transactions.doc();
 
     await _firestore.runTransaction(
       (transaction) async {
-        final ownerSnapshot =
-            await transaction.get(ownerRef);
+        final ownerSnapshot = await transaction.get(ownerRef);
 
-        final ownerData =
-            ownerSnapshot.data() ?? {};
+        final ownerData = ownerSnapshot.data() ?? {};
 
-        final currentBalance =
-            (ownerData['balance'] as num?)
-                    ?.toDouble() ??
-                0.0;
+        final currentBalance = _toDouble(
+          ownerData['balance'],
+        );
 
-        final currentTotalEarned =
-            (ownerData['totalEarned'] as num?)
-                    ?.toDouble() ??
-                0.0;
+        final currentTotalEarned = _toDouble(
+          ownerData['totalEarned'],
+        );
 
         transaction.set(
           ownerRef,
           {
-            'balance':
-                currentBalance + amount,
-            'totalEarned':
-                currentTotalEarned + amount,
-            'updatedAt':
-                FieldValue.serverTimestamp(),
+            'balance': currentBalance + amount,
+            'totalEarned': currentTotalEarned + amount,
+            'updatedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),
         );
@@ -391,15 +331,13 @@ class EarningsService {
           {
             'userId': null,
             'amount': amount,
-            'type': type,
-            'description':
-                description ?? '',
-            'referenceId':
-                referenceId,
+            'type': cleanType,
+            'description': description?.trim() ?? '',
+            'referenceId': referenceId,
             'status': 'completed',
+            'transactionType': 'owner_revenue',
             'ownerTransaction': true,
-            'createdAt':
-                FieldValue.serverTimestamp(),
+            'createdAt': FieldValue.serverTimestamp(),
           },
         );
       },
@@ -418,49 +356,39 @@ class EarningsService {
     final user = _auth.currentUser;
 
     if (user == null) {
-      throw Exception(
-        'প্রথমে লগইন করুন।',
-      );
+      throw Exception('প্রথমে লগইন করুন।');
     }
 
-    if (amount <= 0) {
-      throw Exception(
-        'Withdraw amount সঠিক নয়।',
-      );
+    _validateAmount(amount);
+
+    final cleanMethod = method.trim();
+    final cleanAccount = account.trim();
+
+    if (cleanMethod.isEmpty) {
+      throw Exception('Payment method নির্বাচন করুন।');
     }
 
-    if (method.trim().isEmpty) {
-      throw Exception(
-        'Payment method নির্বাচন করুন।',
-      );
+    if (cleanAccount.isEmpty) {
+      throw Exception('Payment account দিন।');
     }
 
-    if (account.trim().isEmpty) {
-      throw Exception(
-        'Payment account দিন।',
-      );
-    }
-
-    final userRef =
-        _users.doc(user.uid);
-
-    final withdrawRef =
-        _firestore
-            .collection('withdraw_requests')
-            .doc();
+    final userRef = _users.doc(user.uid);
+    final withdrawRef = _withdrawRequests.doc();
+    final transactionRef = _transactions.doc();
 
     await _firestore.runTransaction(
       (transaction) async {
-        final userSnapshot =
-            await transaction.get(userRef);
+        final userSnapshot = await transaction.get(userRef);
 
-        final userData =
-            userSnapshot.data() ?? {};
+        if (!userSnapshot.exists) {
+          throw Exception('User profile পাওয়া যায়নি।');
+        }
 
-        final balance =
-            (userData['balance'] as num?)
-                    ?.toDouble() ??
-                0.0;
+        final userData = userSnapshot.data() ?? {};
+
+        final balance = _toDouble(
+          userData['balance'],
+        );
 
         if (balance < amount) {
           throw Exception(
@@ -468,33 +396,47 @@ class EarningsService {
           );
         }
 
-        final totalWithdrawn =
-            (userData['totalWithdrawn'] as num?)
-                    ?.toDouble() ??
-                0.0;
-
-        transaction.update(
-          userRef,
-          {
-            'balance':
-                balance - amount,
-            'totalWithdrawn':
-                totalWithdrawn + amount,
-            'updatedAt':
-                FieldValue.serverTimestamp(),
-          },
+        final totalWithdrawn = _toDouble(
+          userData['totalWithdrawn'],
         );
 
+        // Reserve money from user wallet.
+        transaction.set(
+          userRef,
+          {
+            'balance': balance - amount,
+            'totalWithdrawn': totalWithdrawn + amount,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+
+        // Withdrawal request.
         transaction.set(
           withdrawRef,
           {
             'userId': user.uid,
             'amount': amount,
-            'method': method.trim(),
-            'account': account.trim(),
+            'method': cleanMethod,
+            'account': cleanAccount,
             'status': 'pending',
-            'createdAt':
-                FieldValue.serverTimestamp(),
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+        );
+
+        // Transaction history.
+        transaction.set(
+          transactionRef,
+          {
+            'userId': user.uid,
+            'amount': amount,
+            'type': 'withdraw',
+            'description': 'Withdrawal request',
+            'referenceId': withdrawRef.id,
+            'status': 'pending',
+            'transactionType': 'withdrawal',
+            'createdAt': FieldValue.serverTimestamp(),
           },
         );
       },
@@ -502,7 +444,7 @@ class EarningsService {
   }
 
   // ============================================================
-  // WITHDRAW REQUESTS
+  // MY WITHDRAW REQUESTS
   // ============================================================
 
   Stream<QuerySnapshot<Map<String, dynamic>>>
@@ -515,8 +457,7 @@ class EarningsService {
       );
     }
 
-    return _firestore
-        .collection('withdraw_requests')
+    return _withdrawRequests
         .where(
           'userId',
           isEqualTo: user.uid,
@@ -526,5 +467,163 @@ class EarningsService {
           descending: true,
         )
         .snapshots();
+  }
+
+  // ============================================================
+  // GET SINGLE WITHDRAW REQUEST
+  // ============================================================
+
+  Future<DocumentSnapshot<Map<String, dynamic>>>
+      getWithdrawRequest(
+    String requestId,
+  ) async {
+    if (requestId.trim().isEmpty) {
+      throw Exception('Withdraw request ID পাওয়া যায়নি।');
+    }
+
+    return _withdrawRequests.doc(requestId).get();
+  }
+
+  // ============================================================
+  // CANCEL WITHDRAW REQUEST
+  // ============================================================
+
+  Future<void> cancelWithdrawRequest(
+    String requestId,
+  ) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception('প্রথমে লগইন করুন।');
+    }
+
+    if (requestId.trim().isEmpty) {
+      throw Exception('Withdraw request ID দিন।');
+    }
+
+    final userRef = _users.doc(user.uid);
+    final withdrawRef = _withdrawRequests.doc(requestId);
+
+    await _firestore.runTransaction(
+      (transaction) async {
+        final withdrawSnapshot =
+            await transaction.get(withdrawRef);
+
+        if (!withdrawSnapshot.exists) {
+          throw Exception(
+            'Withdraw request পাওয়া যায়নি।',
+          );
+        }
+
+        final withdrawData =
+            withdrawSnapshot.data() ?? {};
+
+        if (withdrawData['userId'] != user.uid) {
+          throw Exception(
+            'এই request বাতিল করার অনুমতি নেই।',
+          );
+        }
+
+        final status =
+            withdrawData['status']?.toString() ?? '';
+
+        if (status != 'pending') {
+          throw Exception(
+            'শুধু pending request বাতিল করা যাবে।',
+          );
+        }
+
+        final amount = _toDouble(
+          withdrawData['amount'],
+        );
+
+        final userSnapshot =
+            await transaction.get(userRef);
+
+        final userData =
+            userSnapshot.data() ?? {};
+
+        final currentBalance =
+            _toDouble(userData['balance']);
+
+        final currentTotalWithdrawn =
+            _toDouble(userData['totalWithdrawn']);
+
+        final newTotalWithdrawn =
+            currentTotalWithdrawn >= amount
+                ? currentTotalWithdrawn - amount
+                : 0.0;
+
+        transaction.set(
+          userRef,
+          {
+            'balance': currentBalance + amount,
+            'totalWithdrawn': newTotalWithdrawn,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+
+        transaction.update(
+          withdrawRef,
+          {
+            'status': 'cancelled',
+            'cancelledAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+        );
+
+        final transactionQuery = await _firestore
+            .collection('transactions')
+            .where(
+              'userId',
+              isEqualTo: user.uid,
+            )
+            .where(
+              'referenceId',
+              isEqualTo: requestId,
+            )
+            .limit(1)
+            .get();
+
+        if (transactionQuery.docs.isNotEmpty) {
+          transaction.update(
+            transactionQuery.docs.first.reference,
+            {
+              'status': 'cancelled',
+              'updatedAt': FieldValue.serverTimestamp(),
+            },
+          );
+        }
+      },
+    );
+  }
+
+  // ============================================================
+  // HELPERS
+  // ============================================================
+
+  static double _toDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    if (value is String) {
+      return double.tryParse(value) ?? 0.0;
+    }
+
+    return 0.0;
+  }
+
+  static void _validateAmount(double amount) {
+    if (amount.isNaN || amount.isInfinite) {
+      throw Exception('Amount সঠিক নয়।');
+    }
+
+    if (amount <= 0) {
+      throw Exception(
+        'Amount অবশ্যই 0-এর বেশি হতে হবে।',
+      );
+    }
   }
 }
