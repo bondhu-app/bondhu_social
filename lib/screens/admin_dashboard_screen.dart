@@ -15,7 +15,7 @@ class AdminDashboardScreen extends StatelessWidget {
       FirebaseAuth.instance;
 
   // ============================================================
-  // MONEY
+  // NUMBER
   // ============================================================
 
   double _toDouble(dynamic value) {
@@ -30,12 +30,16 @@ class AdminDashboardScreen extends StatelessWidget {
     return 0;
   }
 
+  // ============================================================
+  // MONEY
+  // ============================================================
+
   String _money(dynamic value) {
     return '৳${_toDouble(value).toStringAsFixed(2)}';
   }
 
   // ============================================================
-  // FIRESTORE STREAMS
+  // OWNER WALLET
   // ============================================================
 
   Stream<DocumentSnapshot<Map<String, dynamic>>>
@@ -46,6 +50,10 @@ class AdminDashboardScreen extends StatelessWidget {
         .snapshots();
   }
 
+  // ============================================================
+  // REVENUE
+  // ============================================================
+
   Stream<DocumentSnapshot<Map<String, dynamic>>>
       _revenueStream() {
     return _firestore
@@ -54,6 +62,10 @@ class AdminDashboardScreen extends StatelessWidget {
         .snapshots();
   }
 
+  // ============================================================
+  // USERS
+  // ============================================================
+
   Stream<QuerySnapshot<Map<String, dynamic>>>
       _usersStream() {
     return _firestore
@@ -61,12 +73,20 @@ class AdminDashboardScreen extends StatelessWidget {
         .snapshots();
   }
 
+  // ============================================================
+  // POSTS
+  // ============================================================
+
   Stream<QuerySnapshot<Map<String, dynamic>>>
       _postsStream() {
     return _firestore
         .collection('posts')
         .snapshots();
   }
+
+  // ============================================================
+  // PENDING WITHDRAWALS
+  // ============================================================
 
   Stream<QuerySnapshot<Map<String, dynamic>>>
       _pendingWithdrawalsStream() {
@@ -86,7 +106,8 @@ class AdminDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor:
+          const Color(0xFFF0F2F5),
 
       appBar: AppBar(
         title: const Text(
@@ -99,7 +120,9 @@ class AdminDashboardScreen extends StatelessWidget {
         actions: [
           IconButton(
             tooltip: 'Logout',
-            onPressed: () => _logout(context),
+            onPressed: () {
+              _logout(context);
+            },
             icon: const Icon(
               Icons.logout,
             ),
@@ -117,7 +140,8 @@ class AdminDashboardScreen extends StatelessWidget {
         },
 
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding:
+              const EdgeInsets.all(16),
           children: [
 
             // ==================================================
@@ -126,10 +150,10 @@ class AdminDashboardScreen extends StatelessWidget {
 
             _adminHeader(),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
             // ==================================================
-            // MONEY OVERVIEW
+            // FINANCIAL OVERVIEW
             // ==================================================
 
             const Text(
@@ -165,7 +189,7 @@ class AdminDashboardScreen extends StatelessWidget {
             const SizedBox(height: 20),
 
             // ==================================================
-            // ADMIN MANAGEMENT
+            // MANAGEMENT
             // ==================================================
 
             const Text(
@@ -197,7 +221,9 @@ class AdminDashboardScreen extends StatelessWidget {
             SizedBox(
               height: 52,
               child: OutlinedButton.icon(
-                onPressed: () => _logout(context),
+                onPressed: () {
+                  _logout(context);
+                },
                 icon: const Icon(
                   Icons.logout,
                 ),
@@ -205,7 +231,8 @@ class AdminDashboardScreen extends StatelessWidget {
                   'Admin Logout',
                   style: TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
               ),
@@ -223,12 +250,14 @@ class AdminDashboardScreen extends StatelessWidget {
   // ============================================================
 
   Widget _adminHeader() {
-    final user = _auth.currentUser;
+    final user =
+        _auth.currentUser;
 
     return Card(
       elevation: 3,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding:
+            const EdgeInsets.all(20),
         child: Row(
           children: [
 
@@ -252,7 +281,8 @@ class AdminDashboardScreen extends StatelessWidget {
                     'Admin Control Panel',
                     style: TextStyle(
                       fontSize: 22,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
@@ -262,7 +292,8 @@ class AdminDashboardScreen extends StatelessWidget {
                     user?.email ??
                         'Admin Account',
                     style: TextStyle(
-                      color: Colors.grey.shade700,
+                      color:
+                          Colors.grey.shade700,
                     ),
                   ),
 
@@ -270,13 +301,17 @@ class AdminDashboardScreen extends StatelessWidget {
 
                   Container(
                     padding:
-                        const EdgeInsets.symmetric(
+                        const EdgeInsets
+                            .symmetric(
                       horizontal: 10,
                       vertical: 5,
                     ),
-                    decoration: BoxDecoration(
+                    decoration:
+                        BoxDecoration(
                       borderRadius:
-                          BorderRadius.circular(20),
+                          BorderRadius.circular(
+                        20,
+                      ),
                       color: Colors.green
                           .withOpacity(0.12),
                     ),
@@ -306,20 +341,23 @@ class AdminDashboardScreen extends StatelessWidget {
     return Column(
       children: [
 
-        // OWNER WALLET
         StreamBuilder<
             DocumentSnapshot<
                 Map<String, dynamic>>>(
-          stream: _ownerWalletStream(),
+          stream:
+              _ownerWalletStream(),
           builder: (
             context,
             snapshot,
           ) {
             final data =
-                snapshot.data?.data() ?? {};
+                snapshot.data?.data() ??
+                    {};
 
             final balance =
-                _toDouble(data['balance']);
+                _toDouble(
+              data['balance'],
+            );
 
             final totalEarned =
                 _toDouble(
@@ -335,9 +373,12 @@ class AdminDashboardScreen extends StatelessWidget {
               children: [
 
                 _moneyCard(
-                  title: 'Owner Wallet',
-                  value: _money(balance),
-                  icon: Icons.account_balance_wallet,
+                  title:
+                      'Owner Wallet',
+                  value:
+                      _money(balance),
+                  icon: Icons
+                      .account_balance_wallet,
                   subtitle:
                       'বর্তমান Admin wallet balance',
                 ),
@@ -348,10 +389,14 @@ class AdminDashboardScreen extends StatelessWidget {
                   children: [
 
                     Expanded(
-                      child: _smallMoneyCard(
-                        title: 'Total Revenue',
+                      child:
+                          _smallMoneyCard(
+                        title:
+                            'Total Revenue',
                         value:
-                            _money(totalEarned),
+                            _money(
+                          totalEarned,
+                        ),
                         icon:
                             Icons.trending_up,
                       ),
@@ -360,10 +405,14 @@ class AdminDashboardScreen extends StatelessWidget {
                     const SizedBox(width: 10),
 
                     Expanded(
-                      child: _smallMoneyCard(
-                        title: 'Paid Users',
+                      child:
+                          _smallMoneyCard(
+                        title:
+                            'Paid Users',
                         value:
-                            _money(totalPaid),
+                            _money(
+                          totalPaid,
+                        ),
                         icon:
                             Icons.payments,
                       ),
@@ -377,19 +426,20 @@ class AdminDashboardScreen extends StatelessWidget {
 
         const SizedBox(height: 10),
 
-        // ADMIN REVENUE
         StreamBuilder<
             DocumentSnapshot<
                 Map<String, dynamic>>>(
-          stream: _revenueStream(),
+          stream:
+              _revenueStream(),
           builder: (
             context,
             snapshot,
           ) {
             final data =
-                snapshot.data?.data() ?? {};
+                snapshot.data?.data() ??
+                    {};
 
-            final revenue =
+            final adminRevenue =
                 _toDouble(
               data['adminRevenue'],
             );
@@ -403,10 +453,14 @@ class AdminDashboardScreen extends StatelessWidget {
               children: [
 
                 Expanded(
-                  child: _smallMoneyCard(
-                    title: 'Admin Income',
+                  child:
+                      _smallMoneyCard(
+                    title:
+                        'Admin Income',
                     value:
-                        _money(revenue),
+                        _money(
+                      adminRevenue,
+                    ),
                     icon:
                         Icons.monetization_on,
                   ),
@@ -415,8 +469,10 @@ class AdminDashboardScreen extends StatelessWidget {
                 const SizedBox(width: 10),
 
                 Expanded(
-                  child: _smallMoneyCard(
-                    title: 'Generated',
+                  child:
+                      _smallMoneyCard(
+                    title:
+                        'Generated',
                     value:
                         _money(
                       totalGenerated,
@@ -446,7 +502,8 @@ class AdminDashboardScreen extends StatelessWidget {
     return Card(
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding:
+            const EdgeInsets.all(18),
         child: Row(
           children: [
 
@@ -468,7 +525,8 @@ class AdminDashboardScreen extends StatelessWidget {
 
                   Text(
                     title,
-                    style: const TextStyle(
+                    style:
+                        const TextStyle(
                       fontSize: 16,
                       fontWeight:
                           FontWeight.bold,
@@ -479,7 +537,8 @@ class AdminDashboardScreen extends StatelessWidget {
 
                   Text(
                     value,
-                    style: const TextStyle(
+                    style:
+                        const TextStyle(
                       fontSize: 27,
                       fontWeight:
                           FontWeight.bold,
@@ -516,7 +575,8 @@ class AdminDashboardScreen extends StatelessWidget {
   }) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding:
+            const EdgeInsets.all(14),
         child: Column(
           children: [
 
@@ -529,8 +589,10 @@ class AdminDashboardScreen extends StatelessWidget {
 
             Text(
               title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
+              textAlign:
+                  TextAlign.center,
+              style:
+                  const TextStyle(
                 fontSize: 12,
               ),
             ),
@@ -539,8 +601,10 @@ class AdminDashboardScreen extends StatelessWidget {
 
             Text(
               value,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
+              textAlign:
+                  TextAlign.center,
+              style:
+                  const TextStyle(
                 fontSize: 17,
                 fontWeight:
                     FontWeight.bold,
@@ -563,7 +627,8 @@ class AdminDashboardScreen extends StatelessWidget {
         StreamBuilder<
             QuerySnapshot<
                 Map<String, dynamic>>>(
-          stream: _usersStream(),
+          stream:
+              _usersStream(),
           builder: (
             context,
             snapshot,
@@ -588,7 +653,8 @@ class AdminDashboardScreen extends StatelessWidget {
         StreamBuilder<
             QuerySnapshot<
                 Map<String, dynamic>>>(
-          stream: _postsStream(),
+          stream:
+              _postsStream(),
           builder: (
             context,
             snapshot,
@@ -628,10 +694,9 @@ class AdminDashboardScreen extends StatelessWidget {
                   Icons.pending_actions,
               title:
                   'Pending Withdrawals',
-              subtitle:
-                  count == 0
-                      ? 'কোনো pending request নেই'
-                      : '$count টি request অপেক্ষায়',
+              subtitle: count == 0
+                  ? 'কোনো pending request নেই'
+                  : '$count টি request অপেক্ষায়',
               value:
                   '$count',
             );
@@ -660,7 +725,8 @@ class AdminDashboardScreen extends StatelessWidget {
         ),
         title: Text(
           title,
-          style: const TextStyle(
+          style:
+              const TextStyle(
             fontWeight:
                 FontWeight.bold,
           ),
@@ -670,7 +736,8 @@ class AdminDashboardScreen extends StatelessWidget {
         ),
         trailing: Text(
           value,
-          style: const TextStyle(
+          style:
+              const TextStyle(
             fontSize: 20,
             fontWeight:
                 FontWeight.bold,
@@ -691,7 +758,8 @@ class AdminDashboardScreen extends StatelessWidget {
       children: [
 
         _menuTile(
-          icon: Icons.account_balance,
+          icon:
+              Icons.account_balance,
           title:
               'Earnings & Revenue',
           subtitle:
@@ -803,7 +871,8 @@ class AdminDashboardScreen extends StatelessWidget {
         ),
         title: Text(
           title,
-          style: const TextStyle(
+          style:
+              const TextStyle(
             fontWeight:
                 FontWeight.bold,
           ),
@@ -821,13 +890,14 @@ class AdminDashboardScreen extends StatelessWidget {
   }
 
   // ============================================================
-  // SECURITY CARD
+  // SECURITY
   // ============================================================
 
   Widget _securityCard() {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding:
+            const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
@@ -890,14 +960,19 @@ class AdminDashboardScreen extends StatelessWidget {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(title),
+          title: Text(
+            title,
+          ),
           content: const Text(
             'এই Management section পরের ধাপে সম্পূর্ণভাবে চালু করা হবে।',
           ),
           actions: [
+
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(
+                  context,
+                );
               },
               child: const Text(
                 'ঠিক আছে',
