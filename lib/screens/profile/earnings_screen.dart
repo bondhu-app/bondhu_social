@@ -1,876 +1,797 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-import '../../services/earnings_service.dart';
+class EarningsService {
+  EarningsService._();
 
-class EarningsScreen extends StatefulWidget {
-  const EarningsScreen({super.key});
+  static final EarningsService instance =
+      EarningsService._();
 
-  @override
-  State<EarningsScreen> createState() => _EarningsScreenState();
-}
+  final FirebaseFirestore _firestore =
+      FirebaseFirestore.instance;
 
-class _EarningsScreenState extends State<EarningsScreen> {
-  final EarningsService _earningsService =
-      EarningsService.instance;
-
-  bool _isProcessing = false;
+  final FirebaseAuth _auth =
+      FirebaseAuth.instance;
 
   // ============================================================
-  // WITHDRAW DIALOG
+  // COLLECTIONS
   // ============================================================
 
-  Future<void> _showWithdrawDialog() async {
-    final amountController = TextEditingController();
-    final accountController = TextEditingController();
+  CollectionReference<Map<String, dynamic>> get _users =>
+      _firestore.collection('users');
 
-    String selectedMethod = 'bKash';
+  CollectionReference<Map<String, dynamic>> get _transactions =>
+      _firestore.collection('transactions');
 
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text(
-                'Withdraw Request',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      value: selectedMethod,
-                      decoration: const InputDecoration(
-                        labelText: 'Payment Method',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'bKash',
-                          child: Text('bKash'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Nagad',
-                          child: Text('Nagad'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Rocket',
-                          child: Text('Rocket'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Bank',
-                          child: Text('Bank'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        if (value == null) return;
+  CollectionReference<Map<String, dynamic>>
+      get _withdrawRequests =>
+          _firestore.collection('withdraw_requests');
 
-                        setDialogState(() {
-                          selectedMethod = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: accountController,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: 'Payment Account',
-                        hintText: 'মোবাইল নম্বর / Account',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: amountController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'Withdraw Amount',
-                        hintText: 'যেমন: 100',
-                        prefixText: '৳ ',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext);
-                  },
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () async {
-                    final amount = double.tryParse(
-                      amountController.text.trim(),
-                    );
+  DocumentReference<Map<String, dynamic>> get _ownerWallet =>
+      _firestore
+          .collection('settings')
+          .doc('owner_wallet');
 
-                    final account =
-                        accountController.text.trim();
+  // ============================================================
+  // CURRENT USER
+  // ============================================================
 
-                    if (amount == null || amount <= 0) {
-                      _showMessage(
-                        'সঠিক Withdraw Amount দিন।',
-                      );
-                      return;
-                    }
+  User? get currentUser => _auth.currentUser;
 
-                    if (account.isEmpty) {
-                      _showMessage(
-                        'Payment Account দিন।',
-                      );
-                      return;
-                    }
+  // ============================================================
+  // USER WALLET STREAM
+  // ============================================================
 
-                    Navigator.pop(dialogContext);
+  Stream<DocumentSnapshot<Map<String, dynamic>>>
+      walletStream() {
+    final user = _auth.currentUser;
 
-                    await _createWithdrawRequest(
-                      amount: amount,
-                      method: selectedMethod,
-                      account: account,
-                    );
-                  },
-                  child: const Text('Request'),
-                ),
-              ],
-            );
+    if (user == null) {
+      return Stream.error(
+        Exception('প্রথমে লগইন করুন।'),
+      );
+    }
+
+    return _users
+        .doc(user.uid)
+        .snapshots();
+  }
+
+  // ============================================================
+  // GET WALLET
+  // ============================================================
+
+  Future<Map<String, dynamic>> getWallet() async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception(
+        'প্রথমে লগইন করুন।',
+      );
+    }
+
+    final snapshot =
+        await _users.doc(user.uid).get();
+
+    final data =
+        snapshot.data() ?? {};
+
+    return {
+      'balance':
+          _toDouble(data['balance']),
+      'totalEarned':
+          _toDouble(data['totalEarned']),
+      'totalWithdrawn':
+          _toDouble(data['totalWithdrawn']),
+    };
+  }
+
+  // ============================================================
+  // CREATE USER WALLET
+  // ============================================================
+
+  Future<void> createWalletIfNeeded() async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception(
+        'প্রথমে লগইন করুন।',
+      );
+    }
+
+    final userRef =
+        _users.doc(user.uid);
+
+    final snapshot =
+        await userRef.get();
+
+    final data =
+        snapshot.data();
+
+    if (data == null) {
+      await userRef.set(
+        {
+          'name':
+              user.displayName ?? 'বন্ধু',
+          'email':
+              user.email ?? '',
+          'balance': 0.0,
+          'totalEarned': 0.0,
+          'totalWithdrawn': 0.0,
+          'createdAt':
+              FieldValue.serverTimestamp(),
+          'updatedAt':
+              FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      return;
+    }
+
+    final updates =
+        <String, dynamic>{};
+
+    if (!data.containsKey('balance')) {
+      updates['balance'] = 0.0;
+    }
+
+    if (!data.containsKey('totalEarned')) {
+      updates['totalEarned'] = 0.0;
+    }
+
+    if (!data.containsKey('totalWithdrawn')) {
+      updates['totalWithdrawn'] = 0.0;
+    }
+
+    if (updates.isNotEmpty) {
+      updates['updatedAt'] =
+          FieldValue.serverTimestamp();
+
+      await userRef.update(updates);
+    }
+  }
+
+  // ============================================================
+  // OWNER WALLET STREAM
+  // ============================================================
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>>
+      ownerWalletStream() {
+    return _ownerWallet.snapshots();
+  }
+
+  // ============================================================
+  // CREATE OWNER WALLET
+  // ============================================================
+
+  Future<void> createOwnerWalletIfNeeded() async {
+    final snapshot =
+        await _ownerWallet.get();
+
+    if (!snapshot.exists) {
+      await _ownerWallet.set(
+        {
+          'balance': 0.0,
+          'totalEarned': 0.0,
+          'totalPaidToUsers': 0.0,
+          'updatedAt':
+              FieldValue.serverTimestamp(),
+        },
+      );
+
+      return;
+    }
+
+    final data =
+        snapshot.data() ?? {};
+
+    final updates =
+        <String, dynamic>{};
+
+    if (!data.containsKey('balance')) {
+      updates['balance'] = 0.0;
+    }
+
+    if (!data.containsKey('totalEarned')) {
+      updates['totalEarned'] = 0.0;
+    }
+
+    if (!data.containsKey('totalPaidToUsers')) {
+      updates['totalPaidToUsers'] = 0.0;
+    }
+
+    if (updates.isNotEmpty) {
+      updates['updatedAt'] =
+          FieldValue.serverTimestamp();
+
+      await _ownerWallet.update(updates);
+    }
+  }
+
+  // ============================================================
+  // MY TRANSACTIONS
+  // ============================================================
+
+  Stream<QuerySnapshot<Map<String, dynamic>>>
+      myTransactionsStream() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      return Stream.error(
+        Exception('প্রথমে লগইন করুন।'),
+      );
+    }
+
+    return _transactions
+        .where(
+          'userId',
+          isEqualTo: user.uid,
+        )
+        .orderBy(
+          'createdAt',
+          descending: true,
+        )
+        .snapshots();
+  }
+
+  // ============================================================
+  // ADD EARNING
+  // ============================================================
+
+  Future<void> addEarning({
+    required double amount,
+    required String type,
+    String? description,
+    String? referenceId,
+  }) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception(
+        'প্রথমে লগইন করুন।',
+      );
+    }
+
+    if (amount <= 0) {
+      throw Exception(
+        'Amount অবশ্যই 0-এর বেশি হতে হবে।',
+      );
+    }
+
+    final userRef =
+        _users.doc(user.uid);
+
+    final ownerRef =
+        _ownerWallet;
+
+    final transactionRef =
+        _transactions.doc();
+
+    await _firestore.runTransaction(
+      (transaction) async {
+        final userSnapshot =
+            await transaction.get(
+          userRef,
+        );
+
+        final ownerSnapshot =
+            await transaction.get(
+          ownerRef,
+        );
+
+        if (!userSnapshot.exists) {
+          throw Exception(
+            'User Profile পাওয়া যায়নি।',
+          );
+        }
+
+        final userData =
+            userSnapshot.data() ?? {};
+
+        final ownerData =
+            ownerSnapshot.data() ?? {};
+
+        final currentBalance =
+            _toDouble(
+          userData['balance'],
+        );
+
+        final currentTotalEarned =
+            _toDouble(
+          userData['totalEarned'],
+        );
+
+        final ownerBalance =
+            _toDouble(
+          ownerData['balance'],
+        );
+
+        transaction.set(
+          userRef,
+          {
+            'balance':
+                currentBalance + amount,
+            'totalEarned':
+                currentTotalEarned + amount,
+            'updatedAt':
+                FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+
+        transaction.set(
+          ownerRef,
+          {
+            'balance':
+                ownerBalance - amount,
+            'updatedAt':
+                FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+
+        transaction.set(
+          transactionRef,
+          {
+            'userId':
+                user.uid,
+            'amount':
+                amount,
+            'type':
+                type,
+            'transactionType':
+                'earning',
+            'description':
+                description ?? '',
+            'referenceId':
+                referenceId,
+            'status':
+                'completed',
+            'createdAt':
+                FieldValue.serverTimestamp(),
           },
         );
       },
     );
-
-    amountController.dispose();
-    accountController.dispose();
   }
 
   // ============================================================
-  // CREATE WITHDRAW
+  // OWNER REVENUE
   // ============================================================
 
-  Future<void> _createWithdrawRequest({
+  Future<void> addOwnerRevenue({
+    required double amount,
+    required String type,
+    String? description,
+    String? referenceId,
+  }) async {
+    if (amount <= 0) {
+      throw Exception(
+        'Amount অবশ্যই 0-এর বেশি হতে হবে।',
+      );
+    }
+
+    final ownerRef =
+        _ownerWallet;
+
+    final transactionRef =
+        _transactions.doc();
+
+    await _firestore.runTransaction(
+      (transaction) async {
+        final ownerSnapshot =
+            await transaction.get(
+          ownerRef,
+        );
+
+        final ownerData =
+            ownerSnapshot.data() ?? {};
+
+        final currentBalance =
+            _toDouble(
+          ownerData['balance'],
+        );
+
+        final currentTotalEarned =
+            _toDouble(
+          ownerData['totalEarned'],
+        );
+
+        transaction.set(
+          ownerRef,
+          {
+            'balance':
+                currentBalance + amount,
+            'totalEarned':
+                currentTotalEarned + amount,
+            'updatedAt':
+                FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+
+        transaction.set(
+          transactionRef,
+          {
+            'userId':
+                null,
+            'amount':
+                amount,
+            'type':
+                type,
+            'transactionType':
+                'owner_revenue',
+            'description':
+                description ?? '',
+            'referenceId':
+                referenceId,
+            'status':
+                'completed',
+            'ownerTransaction':
+                true,
+            'createdAt':
+                FieldValue.serverTimestamp(),
+          },
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // CREATE WITHDRAW REQUEST
+  // ============================================================
+
+  Future<void> createWithdrawRequest({
     required double amount,
     required String method,
     required String account,
   }) async {
-    if (_isProcessing) return;
+    final user = _auth.currentUser;
 
-    setState(() {
-      _isProcessing = true;
-    });
-
-    try {
-      await _earningsService.createWithdrawRequest(
-        amount: amount,
-        method: method,
-        account: account,
+    if (user == null) {
+      throw Exception(
+        'প্রথমে লগইন করুন।',
       );
-
-      if (!mounted) return;
-
-      _showMessage(
-        'Withdraw request সফলভাবে তৈরি হয়েছে।',
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      _showMessage(
-        _cleanError(e),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
     }
-  }
 
-  // ============================================================
-  // CANCEL WITHDRAW
-  // ============================================================
+    if (amount <= 0) {
+      throw Exception(
+        'Withdraw amount সঠিক নয়।',
+      );
+    }
 
-  Future<void> _cancelWithdraw(
-    String requestId,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Cancel Withdraw?'),
-          content: const Text(
-            'এই Withdraw Request বাতিল করলে টাকা আবার Wallet-এ যোগ হবে।',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, false);
-              },
-              child: const Text('না'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, true);
-              },
-              child: const Text('হ্যাঁ, বাতিল করুন'),
-            ),
-          ],
+    final cleanMethod =
+        method.trim();
+
+    final cleanAccount =
+        account.trim();
+
+    if (cleanMethod.isEmpty) {
+      throw Exception(
+        'Payment method নির্বাচন করুন।',
+      );
+    }
+
+    if (cleanAccount.isEmpty) {
+      throw Exception(
+        'Payment account দিন।',
+      );
+    }
+
+    final userRef =
+        _users.doc(user.uid);
+
+    final withdrawRef =
+        _withdrawRequests.doc();
+
+    final transactionRef =
+        _transactions.doc();
+
+    await _firestore.runTransaction(
+      (transaction) async {
+        final userSnapshot =
+            await transaction.get(
+          userRef,
+        );
+
+        if (!userSnapshot.exists) {
+          throw Exception(
+            'User Profile পাওয়া যায়নি।',
+          );
+        }
+
+        final userData =
+            userSnapshot.data() ?? {};
+
+        final balance =
+            _toDouble(
+          userData['balance'],
+        );
+
+        if (balance < amount) {
+          throw Exception(
+            'আপনার Wallet-এ পর্যাপ্ত টাকা নেই।',
+          );
+        }
+
+        final totalWithdrawn =
+            _toDouble(
+          userData['totalWithdrawn'],
+        );
+
+        // --------------------------------------------------------
+        // Deduct wallet
+        // --------------------------------------------------------
+
+        transaction.update(
+          userRef,
+          {
+            'balance':
+                balance - amount,
+            'totalWithdrawn':
+                totalWithdrawn + amount,
+            'updatedAt':
+                FieldValue.serverTimestamp(),
+          },
+        );
+
+        // --------------------------------------------------------
+        // Withdraw request
+        // --------------------------------------------------------
+
+        transaction.set(
+          withdrawRef,
+          {
+            'userId':
+                user.uid,
+            'amount':
+                amount,
+            'method':
+                cleanMethod,
+            'account':
+                cleanAccount,
+            'status':
+                'pending',
+            'createdAt':
+                FieldValue.serverTimestamp(),
+            'updatedAt':
+                FieldValue.serverTimestamp(),
+          },
+        );
+
+        // --------------------------------------------------------
+        // Transaction history
+        // --------------------------------------------------------
+
+        transaction.set(
+          transactionRef,
+          {
+            'userId':
+                user.uid,
+            'amount':
+                amount,
+            'type':
+                'Withdraw',
+            'transactionType':
+                'withdrawal',
+            'description':
+                '$cleanMethod withdrawal request',
+            'referenceId':
+                withdrawRef.id,
+            'status':
+                'pending',
+            'createdAt':
+                FieldValue.serverTimestamp(),
+          },
         );
       },
     );
-
-    if (confirmed != true || _isProcessing) return;
-
-    setState(() {
-      _isProcessing = true;
-    });
-
-    try {
-      await _earningsService.cancelWithdrawRequest(
-        requestId,
-      );
-
-      if (!mounted) return;
-
-      _showMessage(
-        'Withdraw Request বাতিল হয়েছে। টাকা Wallet-এ ফেরত এসেছে।',
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      _showMessage(
-        _cleanError(e),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
-    }
   }
 
   // ============================================================
-  // MESSAGE
+  // CANCEL WITHDRAW REQUEST
   // ============================================================
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-        ),
+  Future<void> cancelWithdrawRequest(
+    String requestId,
+  ) async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      throw Exception(
+        'প্রথমে লগইন করুন।',
       );
-  }
-
-  String _cleanError(Object error) {
-    final text = error.toString();
-
-    if (text.startsWith('Exception: ')) {
-      return text.substring(11);
     }
 
-    return text;
-  }
-
-  // ============================================================
-  // MONEY FORMAT
-  // ============================================================
-
-  String _money(dynamic value) {
-    double amount = 0;
-
-    if (value is num) {
-      amount = value.toDouble();
-    } else if (value is String) {
-      amount = double.tryParse(value) ?? 0;
+    if (requestId.trim().isEmpty) {
+      throw Exception(
+        'Withdraw Request ID পাওয়া যায়নি।',
+      );
     }
 
-    return '৳ ${amount.toStringAsFixed(2)}';
-  }
+    final userRef =
+        _users.doc(user.uid);
 
-  // ============================================================
-  // BUILD
-  // ============================================================
+    final withdrawRef =
+        _withdrawRequests.doc(
+      requestId,
+    );
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Earnings',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: StreamBuilder<
-          DocumentSnapshot<Map<String, dynamic>>>(
-        stream: _earningsService.walletStream(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  _cleanError(snapshot.error!),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          }
+    final transactionRef =
+        _transactions.doc();
 
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+    await _firestore.runTransaction(
+      (transaction) async {
+        final userSnapshot =
+            await transaction.get(
+          userRef,
+        );
 
-          final data =
-              snapshot.data?.data() ?? {};
+        final withdrawSnapshot =
+            await transaction.get(
+          withdrawRef,
+        );
 
-          final balance =
-              data['balance'] ?? 0;
-
-          final totalEarned =
-              data['totalEarned'] ?? 0;
-
-          final totalWithdrawn =
-              data['totalWithdrawn'] ?? 0;
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              await _earningsService
-                  .createWalletIfNeeded();
-            },
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                // ==================================================
-                // BALANCE CARD
-                // ==================================================
-
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    borderRadius:
-                        BorderRadius.circular(20),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Theme.of(context)
-                            .colorScheme
-                            .primary,
-                        Theme.of(context)
-                            .colorScheme
-                            .primaryContainer,
-                      ],
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      const Icon(
-                        Icons.account_balance_wallet,
-                        size: 42,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Available Balance',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _money(balance),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: _isProcessing
-                              ? null
-                              : _showWithdrawDialog,
-                          icon: const Icon(
-                            Icons.payments_outlined,
-                          ),
-                          label: const Text(
-                            'Withdraw',
-                          ),
-                          style: FilledButton.styleFrom(
-                            backgroundColor:
-                                Colors.white,
-                            foregroundColor:
-                                Theme.of(context)
-                                    .colorScheme
-                                    .primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 18),
-
-                // ==================================================
-                // SUMMARY
-                // ==================================================
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: _summaryCard(
-                        title: 'Total Earned',
-                        value: _money(totalEarned),
-                        icon: Icons.trending_up,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _summaryCard(
-                        title: 'Withdrawn',
-                        value:
-                            _money(totalWithdrawn),
-                        icon: Icons
-                            .account_balance_outlined,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 28),
-
-                // ==================================================
-                // TRANSACTIONS
-                // ==================================================
-
-                const Text(
-                  'Transaction History',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                StreamBuilder<
-                    QuerySnapshot<
-                        Map<String, dynamic>>>(
-                  stream: _earningsService
-                      .myTransactionsStream(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return _errorBox(
-                        _cleanError(
-                          snapshot.error!,
-                        ),
-                      );
-                    }
-
-                    if (snapshot.connectionState ==
-                        ConnectionState.waiting) {
-                      return const Padding(
-                        padding:
-                            EdgeInsets.all(24),
-                        child: Center(
-                          child:
-                              CircularProgressIndicator(),
-                        ),
-                      );
-                    }
-
-                    final docs =
-                        snapshot.data?.docs ?? [];
-
-                    if (docs.isEmpty) {
-                      return _emptyBox(
-                        icon:
-                            Icons.receipt_long_outlined,
-                        text:
-                            'এখনও কোনো Transaction নেই।',
-                      );
-                    }
-
-                    return Column(
-                      children: docs
-                          .map(
-                            (doc) =>
-                                _transactionTile(
-                              doc,
-                            ),
-                          )
-                          .toList(),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 28),
-
-                // ==================================================
-                // WITHDRAW REQUESTS
-                // ==================================================
-
-                const Text(
-                  'Withdraw Requests',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                StreamBuilder<
-                    QuerySnapshot<
-                        Map<String, dynamic>>>(
-                  stream: _earningsService
-                      .myWithdrawRequestsStream(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return _errorBox(
-                        _cleanError(
-                          snapshot.error!,
-                        ),
-                      );
-                    }
-
-                    if (snapshot.connectionState ==
-                        ConnectionState.waiting) {
-                      return const Padding(
-                        padding:
-                            EdgeInsets.all(24),
-                        child: Center(
-                          child:
-                              CircularProgressIndicator(),
-                        ),
-                      );
-                    }
-
-                    final docs =
-                        snapshot.data?.docs ?? [];
-
-                    if (docs.isEmpty) {
-                      return _emptyBox(
-                        icon: Icons.payments_outlined,
-                        text:
-                            'এখনও কোনো Withdraw Request নেই।',
-                      );
-                    }
-
-                    return Column(
-                      children: docs
-                          .map(
-                            (doc) =>
-                                _withdrawTile(
-                              doc,
-                            ),
-                          )
-                          .toList(),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 20),
-              ],
-            ),
+        if (!withdrawSnapshot.exists) {
+          throw Exception(
+            'Withdraw Request পাওয়া যায়নি।',
           );
-        },
-      ),
+        }
+
+        final withdrawData =
+            withdrawSnapshot.data() ?? {};
+
+        if (withdrawData['userId'] !=
+            user.uid) {
+          throw Exception(
+            'এই Withdraw Request বাতিল করার অনুমতি নেই।',
+          );
+        }
+
+        final status =
+            withdrawData['status']
+                ?.toString();
+
+        if (status != 'pending') {
+          throw Exception(
+            'শুধু Pending Request বাতিল করা যাবে।',
+          );
+        }
+
+        if (!userSnapshot.exists) {
+          throw Exception(
+            'User Profile পাওয়া যায়নি।',
+          );
+        }
+
+        final userData =
+            userSnapshot.data() ?? {};
+
+        final currentBalance =
+            _toDouble(
+          userData['balance'],
+        );
+
+        final amount =
+            _toDouble(
+          withdrawData['amount'],
+        );
+
+        final currentTotalWithdrawn =
+            _toDouble(
+          userData['totalWithdrawn'],
+        );
+
+        final newTotalWithdrawn =
+            currentTotalWithdrawn >= amount
+                ? currentTotalWithdrawn - amount
+                : 0.0;
+
+        // --------------------------------------------------------
+        // Return money to wallet
+        // --------------------------------------------------------
+
+        transaction.update(
+          userRef,
+          {
+            'balance':
+                currentBalance + amount,
+            'totalWithdrawn':
+                newTotalWithdrawn,
+            'updatedAt':
+                FieldValue.serverTimestamp(),
+          },
+        );
+
+        // --------------------------------------------------------
+        // Mark request cancelled
+        // --------------------------------------------------------
+
+        transaction.update(
+          withdrawRef,
+          {
+            'status':
+                'cancelled',
+            'cancelledAt':
+                FieldValue.serverTimestamp(),
+            'updatedAt':
+                FieldValue.serverTimestamp(),
+          },
+        );
+
+        // --------------------------------------------------------
+        // Cancellation transaction
+        // --------------------------------------------------------
+
+        transaction.set(
+          transactionRef,
+          {
+            'userId':
+                user.uid,
+            'amount':
+                amount,
+            'type':
+                'Withdraw Cancelled',
+            'transactionType':
+                'withdrawal_cancelled',
+            'description':
+                'Withdraw request cancelled and money returned',
+            'referenceId':
+                requestId,
+            'status':
+                'completed',
+            'createdAt':
+                FieldValue.serverTimestamp(),
+          },
+        );
+      },
     );
   }
 
   // ============================================================
-  // SUMMARY CARD
+  // MY WITHDRAW REQUESTS
   // ============================================================
 
-  Widget _summaryCard({
-    required String title,
-    required String value,
-    required IconData icon,
-  }) {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Icon(icon),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
+  Stream<QuerySnapshot<Map<String, dynamic>>>
+      myWithdrawRequestsStream() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      return Stream.error(
+        Exception(
+          'প্রথমে লগইন করুন।',
         ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // TRANSACTION TILE
-  // ============================================================
-
-  Widget _transactionTile(
-    QueryDocumentSnapshot<Map<String, dynamic>>
-        doc,
-  ) {
-    final data = doc.data();
-
-    final amount =
-        _money(data['amount']);
-
-    final type =
-        data['type']?.toString() ??
-            'Transaction';
-
-    final status =
-        data['status']?.toString() ??
-            'unknown';
-
-    final description =
-        data['description']?.toString() ??
-            '';
-
-    final isWithdrawal =
-        data['transactionType'] ==
-            'withdrawal';
-
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(
-        bottom: 8,
-      ),
-      child: ListTile(
-        leading: CircleAvatar(
-          child: Icon(
-            isWithdrawal
-                ? Icons.arrow_upward
-                : Icons.arrow_downward,
-          ),
-        ),
-        title: Text(
-          type,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Text(
-          description.isEmpty
-              ? status
-              : '$description • $status',
-        ),
-        trailing: Text(
-          amount,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: isWithdrawal
-                ? Colors.red
-                : Colors.green,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // WITHDRAW TILE
-  // ============================================================
-
-  Widget _withdrawTile(
-    QueryDocumentSnapshot<Map<String, dynamic>>
-        doc,
-  ) {
-    final data = doc.data();
-
-    final amount =
-        _money(data['amount']);
-
-    final method =
-        data['method']?.toString() ??
-            '';
-
-    final account =
-        data['account']?.toString() ??
-            '';
-
-    final status =
-        data['status']?.toString() ??
-            'unknown';
-
-    final requestId = doc.id;
-
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(
-        bottom: 8,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.payments_outlined,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    amount,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                _statusChip(status),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text('Method: $method'),
-            const SizedBox(height: 4),
-            Text('Account: $account'),
-            if (status == 'pending') ...[
-              const SizedBox(height: 12),
-              Align(
-                alignment:
-                    Alignment.centerRight,
-                child: OutlinedButton.icon(
-                  onPressed: _isProcessing
-                      ? null
-                      : () =>
-                          _cancelWithdraw(
-                            requestId,
-                          ),
-                  icon: const Icon(
-                    Icons.cancel_outlined,
-                  ),
-                  label: const Text(
-                    'Cancel Request',
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // STATUS CHIP
-  // ============================================================
-
-  Widget _statusChip(String status) {
-    String label;
-
-    switch (status) {
-      case 'pending':
-        label = 'Pending';
-        break;
-      case 'completed':
-        label = 'Completed';
-        break;
-      case 'cancelled':
-        label = 'Cancelled';
-        break;
-      case 'rejected':
-        label = 'Rejected';
-        break;
-      default:
-        label = status;
+      );
     }
 
-    return Chip(
-      label: Text(label),
-      visualDensity:
-          VisualDensity.compact,
-    );
+    return _withdrawRequests
+        .where(
+          'userId',
+          isEqualTo: user.uid,
+        )
+        .orderBy(
+          'createdAt',
+          descending: true,
+        )
+        .snapshots();
   }
 
   // ============================================================
-  // EMPTY BOX
+  // HELPER
   // ============================================================
 
-  Widget _emptyBox({
-    required IconData icon,
-    required String text,
-  }) {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          vertical: 30,
-          horizontal: 16,
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 42,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  static double _toDouble(
+    dynamic value,
+  ) {
+    if (value is num) {
+      return value.toDouble();
+    }
 
-  // ============================================================
-  // ERROR BOX
-  // ============================================================
+    if (value is String) {
+      return double.tryParse(value) ?? 0.0;
+    }
 
-  Widget _errorBox(String text) {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-        ),
-      ),
-    );
+    return 0.0;
   }
 }
