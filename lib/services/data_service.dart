@@ -69,8 +69,7 @@ class DataService {
     }
 
     if (username != null) {
-      data['username'] =
-          username.trim().toLowerCase();
+      data['username'] = username.trim().toLowerCase();
     }
 
     if (photoUrl != null) {
@@ -78,8 +77,7 @@ class DataService {
     }
 
     if (coverPhotoUrl != null) {
-      data['coverPhotoUrl'] =
-          coverPhotoUrl;
+      data['coverPhotoUrl'] = coverPhotoUrl;
     }
 
     await _users.doc(user.uid).set(
@@ -89,252 +87,10 @@ class DataService {
   }
 
   // ============================================================
-  // INITIALIZE USER
-  // ============================================================
-
-  Future<void> initializeUser() async {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      throw Exception('প্রথমে লগইন করুন।');
-    }
-
-    final userRef = _users.doc(user.uid);
-
-    final snapshot = await userRef.get();
-
-    final existing = snapshot.data() ?? {};
-
-    final data = <String, dynamic>{
-      'name': existing['name'] ??
-          user.displayName ??
-          'বন্ধু',
-
-      'email': existing['email'] ??
-          user.email,
-
-      'photoUrl': existing['photoUrl'] ??
-          user.photoURL,
-
-      'balance':
-          existing['balance'] ?? 0.0,
-
-      'totalIncome':
-          existing['totalIncome'] ?? 0.0,
-
-      'totalWithdraw':
-          existing['totalWithdraw'] ?? 0.0,
-
-      'referralCode':
-          existing['referralCode'] ??
-              user.uid.substring(
-                0,
-                user.uid.length > 8
-                    ? 8
-                    : user.uid.length,
-              ),
-
-      'referredBy':
-          existing['referredBy'] ?? '',
-
-      'verifiedCreator':
-          existing['verifiedCreator'] ??
-              false,
-
-      'earningEnabled':
-          existing['earningEnabled'] ??
-              false,
-
-      'followersCount':
-          existing['followersCount'] ?? 0,
-
-      'followingCount':
-          existing['followingCount'] ?? 0,
-
-      'postCount':
-          existing['postCount'] ?? 0,
-
-      'updatedAt':
-          FieldValue.serverTimestamp(),
-    };
-
-    if (!snapshot.exists) {
-      data['createdAt'] =
-          FieldValue.serverTimestamp();
-    }
-
-    await userRef.set(
-      data,
-      SetOptions(merge: true),
-    );
-  }
-
-  // ============================================================
-  // WALLET
-  // ============================================================
-
-  Stream<DocumentSnapshot<Map<String, dynamic>>>
-      walletStream() {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      return const Stream.empty();
-    }
-
-    return _users.doc(user.uid).snapshots();
-  }
-
-  Future<double> getBalance() async {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      throw Exception('লগইন করুন।');
-    }
-
-    final doc =
-        await _users.doc(user.uid).get();
-
-    final data = doc.data() ?? {};
-
-    return (data['balance'] as num?)
-            ?.toDouble() ??
-        0.0;
-  }
-
-  Future<Map<String, double>>
-      getWalletSummary() async {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      throw Exception('লগইন করুন।');
-    }
-
-    final doc =
-        await _users.doc(user.uid).get();
-
-    final data = doc.data() ?? {};
-
-    return {
-      'balance':
-          (data['balance'] as num?)
-                  ?.toDouble() ??
-              0.0,
-
-      'totalIncome':
-          (data['totalIncome'] as num?)
-                  ?.toDouble() ??
-              0.0,
-
-      'totalWithdraw':
-          (data['totalWithdraw'] as num?)
-                  ?.toDouble() ??
-              0.0,
-    };
-  }
-
-  // ============================================================
-  // ADD INCOME
-  // ============================================================
-
-  Future<void> addBalance({
-    required String userId,
-    required double amount,
-    String reason = 'Income',
-  }) async {
-    if (amount <= 0) {
-      throw Exception(
-        'Income amount সঠিক নয়।',
-      );
-    }
-
-    final userRef =
-        _users.doc(userId);
-
-    final incomeRef =
-        userRef.collection('income').doc();
-
-    await _firestore.runTransaction(
-      (transaction) async {
-        final userSnapshot =
-            await transaction.get(
-          userRef,
-        );
-
-        if (!userSnapshot.exists) {
-          throw Exception(
-            'User পাওয়া যায়নি।',
-          );
-        }
-
-        final data =
-            userSnapshot.data() ?? {};
-
-        final currentBalance =
-            (data['balance'] as num?)
-                    ?.toDouble() ??
-                0.0;
-
-        final totalIncome =
-            (data['totalIncome'] as num?)
-                    ?.toDouble() ??
-                0.0;
-
-        transaction.update(
-          userRef,
-          {
-            'balance':
-                currentBalance + amount,
-
-            'totalIncome':
-                totalIncome + amount,
-
-            'updatedAt':
-                FieldValue.serverTimestamp(),
-          },
-        );
-
-        transaction.set(
-          incomeRef,
-          {
-            'userId': userId,
-            'amount': amount,
-            'reason': reason,
-            'createdAt':
-                FieldValue.serverTimestamp(),
-          },
-        );
-      },
-    );
-  }
-
-  // ============================================================
-  // INCOME HISTORY
-  // ============================================================
-
-  Stream<QuerySnapshot<Map<String, dynamic>>>
-      incomeStream() {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      return const Stream.empty();
-    }
-
-    return _users
-        .doc(user.uid)
-        .collection('income')
-        .orderBy(
-          'createdAt',
-          descending: true,
-        )
-        .snapshots();
-  }
-
-  // ============================================================
   // POSTS
   // ============================================================
 
-  Stream<QuerySnapshot<Map<String, dynamic>>>
-      postsStream() {
+  Stream<QuerySnapshot<Map<String, dynamic>>> postsStream() {
     return _posts
         .orderBy(
           'createdAt',
@@ -343,13 +99,11 @@ class DataService {
         .snapshots();
   }
 
-  Future<DocumentReference<Map<String, dynamic>>>
-      createPost({
+  Future<DocumentReference<Map<String, dynamic>>> createPost({
     required String text,
     String? imageUrl,
   }) async {
-    final user =
-        _auth.currentUser;
+    final user = _auth.currentUser;
 
     if (user == null) {
       throw Exception(
@@ -357,59 +111,31 @@ class DataService {
       );
     }
 
-    final userDoc =
-        await _users.doc(user.uid).get();
+    final userDoc = await _users.doc(user.uid).get();
 
-    final userData =
-        userDoc.data();
+    final userData = userDoc.data();
 
     final post = <String, dynamic>{
       'userId': user.uid,
-
       'userName':
           userData?['name'] ??
-              user.displayName ??
-              'বন্ধু',
-
+          user.displayName ??
+          'বন্ধু',
       'userPhotoUrl':
           userData?['photoUrl'] ??
-              user.photoURL,
-
+          user.photoURL,
       'text': text.trim(),
-
       'imageUrl': imageUrl,
 
-      // Counters
       'likeCount': 0,
       'commentCount': 0,
       'shareCount': 0,
 
-      // Monetization preparation
-      'postViews': 0,
-      'earning': 0.0,
-
-      'createdAt':
-          FieldValue.serverTimestamp(),
-
-      'updatedAt':
-          FieldValue.serverTimestamp(),
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     };
 
-    final postRef =
-        await _posts.add(post);
-
-    // Update user's post count
-    await _users.doc(user.uid).set(
-      {
-        'postCount':
-            FieldValue.increment(1),
-        'updatedAt':
-            FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-
-    return postRef;
+    return _posts.add(post);
   }
 
   Future<void> updatePost({
@@ -417,32 +143,23 @@ class DataService {
     required String text,
     String? imageUrl,
   }) async {
-    final user =
-        _auth.currentUser;
+    final user = _auth.currentUser;
 
     if (user == null) {
-      throw Exception(
-        'প্রথমে লগইন করুন।',
-      );
+      throw Exception('প্রথমে লগইন করুন।');
     }
 
-    final postRef =
-        _posts.doc(postId);
+    final postRef = _posts.doc(postId);
 
-    final post =
-        await postRef.get();
+    final post = await postRef.get();
 
     if (!post.exists) {
-      throw Exception(
-        'Post পাওয়া যায়নি।',
-      );
+      throw Exception('Post পাওয়া যায়নি।');
     }
 
-    final data =
-        post.data();
+    final data = post.data();
 
-    if (data?['userId'] !=
-        user.uid) {
+    if (data?['userId'] != user.uid) {
       throw Exception(
         'এই Post পরিবর্তন করার অনুমতি নেই।',
       );
@@ -451,138 +168,40 @@ class DataService {
     await postRef.update({
       'text': text.trim(),
       'imageUrl': imageUrl,
-      'updatedAt':
-          FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
-  Future<void> deletePost(
-    String postId,
-  ) async {
-    final user =
-        _auth.currentUser;
+  Future<void> deletePost(String postId) async {
+    final user = _auth.currentUser;
 
     if (user == null) {
-      throw Exception(
-        'প্রথমে লগইন করুন।',
-      );
+      throw Exception('প্রথমে লগইন করুন।');
     }
 
-    final postRef =
-        _posts.doc(postId);
+    final postRef = _posts.doc(postId);
 
-    final post =
-        await postRef.get();
+    final post = await postRef.get();
 
     if (!post.exists) {
-      throw Exception(
-        'Post পাওয়া যায়নি।',
-      );
+      throw Exception('Post পাওয়া যায়নি।');
     }
 
-    final postData =
-        post.data() ?? {};
-
-    if (postData['userId'] !=
-        user.uid) {
+    if (post.data()?['userId'] != user.uid) {
       throw Exception(
         'এই Post মুছে ফেলার অনুমতি নেই।',
       );
     }
 
     await postRef.delete();
-
-    await _users.doc(user.uid).set(
-      {
-        'postCount':
-            FieldValue.increment(-1),
-        'updatedAt':
-            FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-  }
-
-  // ============================================================
-  // POST VIEW
-  // ============================================================
-
-  Future<void> viewPost(
-    String postId,
-  ) async {
-    final user =
-        _auth.currentUser;
-
-    if (user == null) {
-      return;
-    }
-
-    final postRef =
-        _posts.doc(postId);
-
-    final viewRef = postRef
-        .collection('views')
-        .doc(user.uid);
-
-    await _firestore.runTransaction(
-      (transaction) async {
-        final viewSnapshot =
-            await transaction.get(
-          viewRef,
-        );
-
-        if (viewSnapshot.exists) {
-          return;
-        }
-
-        final postSnapshot =
-            await transaction.get(
-          postRef,
-        );
-
-        if (!postSnapshot.exists) {
-          return;
-        }
-
-        final data =
-            postSnapshot.data() ?? {};
-
-        final currentViews =
-            (data['postViews'] as num?)
-                    ?.toInt() ??
-                0;
-
-        transaction.set(
-          viewRef,
-          {
-            'userId': user.uid,
-            'createdAt':
-                FieldValue.serverTimestamp(),
-          },
-        );
-
-        transaction.update(
-          postRef,
-          {
-            'postViews':
-                currentViews + 1,
-            'updatedAt':
-                FieldValue.serverTimestamp(),
-          },
-        );
-      },
-    );
   }
 
   // ============================================================
   // LIKE
   // ============================================================
 
-  Stream<bool> likeStatusStream(
-    String postId,
-  ) {
-    final user =
-        _auth.currentUser;
+  Stream<bool> likeStatusStream(String postId) {
+    final user = _auth.currentUser;
 
     if (user == null) {
       return Stream.value(false);
@@ -594,16 +213,12 @@ class DataService {
         .doc(user.uid)
         .snapshots()
         .map(
-          (snapshot) =>
-              snapshot.exists,
+          (snapshot) => snapshot.exists,
         );
   }
 
-  Future<void> likePost(
-    String postId,
-  ) async {
-    final user =
-        _auth.currentUser;
+  Future<void> likePost(String postId) async {
+    final user = _auth.currentUser;
 
     if (user == null) {
       throw Exception(
@@ -611,8 +226,7 @@ class DataService {
       );
     }
 
-    final postRef =
-        _posts.doc(postId);
+    final postRef = _posts.doc(postId);
 
     final likeRef = postRef
         .collection('likes')
@@ -621,9 +235,7 @@ class DataService {
     await _firestore.runTransaction(
       (transaction) async {
         final postSnapshot =
-            await transaction.get(
-          postRef,
-        );
+            await transaction.get(postRef);
 
         if (!postSnapshot.exists) {
           throw Exception(
@@ -632,24 +244,16 @@ class DataService {
         }
 
         final likeSnapshot =
-            await transaction.get(
-          likeRef,
-        );
+            await transaction.get(likeRef);
 
         final postData =
-            postSnapshot.data()
-                ?? {};
+            postSnapshot.data() ?? {};
 
         final currentCount =
-            (postData['likeCount']
-                        as num?)
-                    ?.toInt() ??
-                0;
+            (postData['likeCount'] as num?)?.toInt() ?? 0;
 
         if (likeSnapshot.exists) {
-          transaction.delete(
-            likeRef,
-          );
+          transaction.delete(likeRef);
 
           transaction.update(
             postRef,
@@ -659,8 +263,7 @@ class DataService {
                       ? currentCount - 1
                       : 0,
               'updatedAt':
-                  FieldValue
-                      .serverTimestamp(),
+                  FieldValue.serverTimestamp(),
             },
           );
         } else {
@@ -669,19 +272,16 @@ class DataService {
             {
               'userId': user.uid,
               'createdAt':
-                  FieldValue
-                      .serverTimestamp(),
+                  FieldValue.serverTimestamp(),
             },
           );
 
           transaction.update(
             postRef,
             {
-              'likeCount':
-                  currentCount + 1,
+              'likeCount': currentCount + 1,
               'updatedAt':
-                  FieldValue
-                      .serverTimestamp(),
+                  FieldValue.serverTimestamp(),
             },
           );
         }
@@ -693,8 +293,7 @@ class DataService {
   // COMMENTS
   // ============================================================
 
-  Stream<QuerySnapshot<Map<String, dynamic>>>
-      commentsStream(
+  Stream<QuerySnapshot<Map<String, dynamic>>> commentsStream(
     String postId,
   ) {
     return _posts
@@ -711,8 +310,7 @@ class DataService {
     required String postId,
     required String text,
   }) async {
-    final user =
-        _auth.currentUser;
+    final user = _auth.currentUser;
 
     if (user == null) {
       throw Exception(
@@ -720,8 +318,7 @@ class DataService {
       );
     }
 
-    final cleanText =
-        text.trim();
+    final cleanText = text.trim();
 
     if (cleanText.isEmpty) {
       throw Exception(
@@ -729,26 +326,19 @@ class DataService {
       );
     }
 
-    final userDoc =
-        await _users.doc(user.uid).get();
+    final userDoc = await _users.doc(user.uid).get();
 
-    final userData =
-        userDoc.data();
+    final userData = userDoc.data();
 
-    final postRef =
-        _posts.doc(postId);
+    final postRef = _posts.doc(postId);
 
     final commentRef =
-        postRef.collection(
-          'comments',
-        ).doc();
+        postRef.collection('comments').doc();
 
     await _firestore.runTransaction(
       (transaction) async {
         final postSnapshot =
-            await transaction.get(
-          postRef,
-        );
+            await transaction.get(postRef);
 
         if (!postSnapshot.exists) {
           throw Exception(
@@ -757,12 +347,10 @@ class DataService {
         }
 
         final postData =
-            postSnapshot.data()
-                ?? {};
+            postSnapshot.data() ?? {};
 
         final currentCount =
-            (postData['commentCount']
-                    as num?)
+            (postData['commentCount'] as num?)
                 ?.toInt() ??
             0;
 
@@ -770,18 +358,14 @@ class DataService {
           commentRef,
           {
             'userId': user.uid,
-
             'userName':
                 userData?['name'] ??
-                    user.displayName ??
-                    'বন্ধু',
-
+                user.displayName ??
+                'বন্ধু',
             'userPhotoUrl':
                 userData?['photoUrl'] ??
-                    user.photoURL,
-
+                user.photoURL,
             'text': cleanText,
-
             'createdAt':
                 FieldValue.serverTimestamp(),
           },
@@ -790,8 +374,7 @@ class DataService {
         transaction.update(
           postRef,
           {
-            'commentCount':
-                currentCount + 1,
+            'commentCount': currentCount + 1,
             'updatedAt':
                 FieldValue.serverTimestamp(),
           },
@@ -804,8 +387,7 @@ class DataService {
     required String postId,
     required String commentId,
   }) async {
-    final user =
-        _auth.currentUser;
+    final user = _auth.currentUser;
 
     if (user == null) {
       throw Exception(
@@ -813,20 +395,16 @@ class DataService {
       );
     }
 
-    final postRef =
-        _posts.doc(postId);
+    final postRef = _posts.doc(postId);
 
-    final commentRef =
-        postRef
-            .collection('comments')
-            .doc(commentId);
+    final commentRef = postRef
+        .collection('comments')
+        .doc(commentId);
 
     await _firestore.runTransaction(
       (transaction) async {
         final commentSnapshot =
-            await transaction.get(
-          commentRef,
-        );
+            await transaction.get(commentRef);
 
         if (!commentSnapshot.exists) {
           throw Exception(
@@ -835,34 +413,26 @@ class DataService {
         }
 
         final commentData =
-            commentSnapshot.data()
-                ?? {};
+            commentSnapshot.data() ?? {};
 
-        if (commentData['userId'] !=
-            user.uid) {
+        if (commentData['userId'] != user.uid) {
           throw Exception(
             'এই Comment মুছে ফেলার অনুমতি নেই।',
           );
         }
 
         final postSnapshot =
-            await transaction.get(
-          postRef,
-        );
+            await transaction.get(postRef);
 
         final postData =
-            postSnapshot.data()
-                ?? {};
+            postSnapshot.data() ?? {};
 
         final currentCount =
-            (postData['commentCount']
-                    as num?)
+            (postData['commentCount'] as num?)
                 ?.toInt() ??
             0;
 
-        transaction.delete(
-          commentRef,
-        );
+        transaction.delete(commentRef);
 
         transaction.update(
           postRef,
@@ -883,11 +453,8 @@ class DataService {
   // SHARE
   // ============================================================
 
-  Stream<bool> shareStatusStream(
-    String postId,
-  ) {
-    final user =
-        _auth.currentUser;
+  Stream<bool> shareStatusStream(String postId) {
+    final user = _auth.currentUser;
 
     if (user == null) {
       return Stream.value(false);
@@ -899,16 +466,12 @@ class DataService {
         .doc(user.uid)
         .snapshots()
         .map(
-          (snapshot) =>
-              snapshot.exists,
+          (snapshot) => snapshot.exists,
         );
   }
 
-  Future<void> sharePost(
-    String postId,
-  ) async {
-    final user =
-        _auth.currentUser;
+  Future<bool> sharePost(String postId) async {
+    final user = _auth.currentUser;
 
     if (user == null) {
       throw Exception(
@@ -916,19 +479,17 @@ class DataService {
       );
     }
 
-    final postRef =
-        _posts.doc(postId);
+    final postRef = _posts.doc(postId);
 
     final shareRef = postRef
         .collection('shares')
         .doc(user.uid);
 
-    await _firestore.runTransaction(
+    final result =
+        await _firestore.runTransaction<bool>(
       (transaction) async {
         final postSnapshot =
-            await transaction.get(
-          postRef,
-        );
+            await transaction.get(postRef);
 
         if (!postSnapshot.exists) {
           throw Exception(
@@ -937,24 +498,18 @@ class DataService {
         }
 
         final shareSnapshot =
-            await transaction.get(
-          shareRef,
-        );
+            await transaction.get(shareRef);
 
         final postData =
-            postSnapshot.data()
-                ?? {};
+            postSnapshot.data() ?? {};
 
         final currentCount =
-            (postData['shareCount']
-                    as num?)
+            (postData['shareCount'] as num?)
                 ?.toInt() ??
             0;
 
         if (shareSnapshot.exists) {
-          transaction.delete(
-            shareRef,
-          );
+          transaction.delete(shareRef);
 
           transaction.update(
             postRef,
@@ -967,6 +522,8 @@ class DataService {
                   FieldValue.serverTimestamp(),
             },
           );
+
+          return false;
         } else {
           transaction.set(
             shareRef,
@@ -980,41 +537,38 @@ class DataService {
           transaction.update(
             postRef,
             {
-              'shareCount':
-                  currentCount + 1,
+              'shareCount': currentCount + 1,
               'updatedAt':
                   FieldValue.serverTimestamp(),
             },
           );
+
+          return true;
         }
       },
     );
+
+    return result;
   }
 
   // ============================================================
   // SEARCH USERS
   // ============================================================
 
-  Future<QuerySnapshot<Map<String, dynamic>>>
-      searchUsers(
+  Future<QuerySnapshot<Map<String, dynamic>>> searchUsers(
     String text,
   ) async {
-    final query =
-        text.trim();
+    final query = text.trim();
 
     if (query.isEmpty) {
-      return _users
-          .limit(20)
-          .get();
+      return _users.limit(20).get();
     }
 
     return _users
         .orderBy('name')
         .startAt([query])
-        .endAt([
-          '$query\uf8ff',
-        ])
+        .endAt(['$query\uf8ff'])
         .limit(20)
         .get();
   }
-}
+} 
