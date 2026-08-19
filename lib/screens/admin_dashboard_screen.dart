@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import 'admin_earnings_screen.dart';
+import 'admin_withdraw_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
@@ -193,6 +194,23 @@ class AdminDashboardScreen extends StatelessWidget {
                   );
                 }
 
+                if (snapshot.hasError) {
+                  return Card(
+                    child: Padding(
+                      padding:
+                          const EdgeInsets.all(16),
+                      child: Text(
+                        snapshot.error
+                                .toString()
+                                .replaceFirst(
+                                  'Exception: ',
+                                  '',
+                                ),
+                      ),
+                    ),
+                  );
+                }
+
                 final data =
                     snapshot.data?.data() ?? {};
 
@@ -363,7 +381,7 @@ class AdminDashboardScreen extends StatelessWidget {
             const SizedBox(height: 10),
 
             // ==================================================
-            // WITHDRAWALS
+            // WITHDRAW REQUESTS
             // ==================================================
 
             StreamBuilder<
@@ -422,7 +440,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (_) =>
-                            const AdminEarningsScreen(),
+                            const AdminWithdrawScreen(),
                       ),
                     );
                   },
@@ -433,7 +451,7 @@ class AdminDashboardScreen extends StatelessWidget {
             const SizedBox(height: 10),
 
             // ==================================================
-            // EARNINGS
+            // EARNINGS & WITHDRAW
             // ==================================================
 
             _dashboardTile(
@@ -442,7 +460,7 @@ class AdminDashboardScreen extends StatelessWidget {
               title:
                   'Earnings & Withdraw',
               subtitle:
-                  'Owner wallet এবং withdrawal পরিচালনা',
+                  'Owner wallet এবং earnings পরিচালনা',
               onTap: () {
                 Navigator.push(
                   context,
@@ -454,10 +472,34 @@ class AdminDashboardScreen extends StatelessWidget {
               },
             ),
 
+            const SizedBox(height: 10),
+
+            // ==================================================
+            // ALL WITHDRAW REQUESTS
+            // ==================================================
+
+            _dashboardTile(
+              icon:
+                  Icons.payments,
+              title:
+                  'Manage Withdrawals',
+              subtitle:
+                  'Approve অথবা Reject করুন',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const AdminWithdrawScreen(),
+                  ),
+                );
+              },
+            ),
+
             const SizedBox(height: 18),
 
             // ==================================================
-            // ADMIN INFORMATION
+            // ADMIN SECURITY
             // ==================================================
 
             Card(
@@ -488,7 +530,7 @@ class AdminDashboardScreen extends StatelessWidget {
                     const SizedBox(height: 12),
 
                     Text(
-                      'এই Dashboard-এর Admin কাজগুলো Firestore Rules-এর মাধ্যমে সুরক্ষিত রাখতে হবে।',
+                      'এই Dashboard-এর Admin কাজগুলো Firestore Rules-এর মাধ্যমে সুরক্ষিত রাখা হয়েছে।',
                       style: TextStyle(
                         color:
                             Colors.grey.shade700,
