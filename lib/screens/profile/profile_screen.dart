@@ -17,6 +17,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _loading = false;
 
+  // ============================================================
+  // LOGOUT
+  // ============================================================
+
   Future<void> _logout() async {
     final shouldLogout = await showDialog<bool>(
       context: context,
@@ -71,6 +75,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // ============================================================
+  // EDIT PROFILE
+  // ============================================================
+
   Future<void> _openEditProfile(
     Map<String, dynamic> data,
   ) async {
@@ -87,13 +95,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // ============================================================
+  // EARNINGS
+  // ============================================================
+
   void _openEarnings() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const EarningsScreen(),
+        builder: (_) => EarningsScreen(),
       ),
     );
   }
+
+  // ============================================================
+  // SETTINGS
+  // ============================================================
 
   void _showSettings() {
     Navigator.of(context).push(
@@ -102,6 +118,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -123,8 +143,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .doc(user.uid)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState ==
-            ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(
               child: CircularProgressIndicator(),
@@ -282,6 +301,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ============================================================
+  // PROFILE HEADER
+  // ============================================================
+
   Widget _buildHeader({
     required String name,
     required String username,
@@ -423,6 +446,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ============================================================
+  // DEFAULT COVER
+  // ============================================================
+
   Widget _defaultCover() {
     return Container(
       decoration: BoxDecoration(
@@ -437,6 +464,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  // ============================================================
+  // PROFILE ACTIONS
+  // ============================================================
 
   Widget _buildProfileActions(
     Map<String, dynamic> data,
@@ -459,7 +490,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
+
           const SizedBox(width: 10),
+
           IconButton(
             tooltip: 'Earnings',
             onPressed: _openEarnings,
@@ -472,7 +505,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               color: Colors.green.shade700,
             ),
           ),
+
           const SizedBox(width: 5),
+
           IconButton(
             tooltip: 'Settings',
             onPressed: _showSettings,
@@ -488,6 +523,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  // ============================================================
+  // EARNINGS CARD
+  // ============================================================
 
   Widget _buildEarningsCard() {
     return Container(
@@ -517,7 +556,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: Colors.white,
                 ),
               ),
+
               SizedBox(width: 14),
+
               Expanded(
                 child: Column(
                   crossAxisAlignment:
@@ -531,7 +572,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+
                     SizedBox(height: 4),
+
                     Text(
                       'আপনার আয়, Wallet এবং Withdraw দেখুন',
                       style: TextStyle(
@@ -542,6 +585,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
               ),
+
               Icon(
                 Icons.arrow_forward_ios,
                 color: Colors.white,
@@ -553,6 +597,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  // ============================================================
+  // SECTION TITLE
+  // ============================================================
 
   Widget _buildSectionTitle(String title) {
     return Container(
@@ -572,6 +620,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  // ============================================================
+  // MY POSTS
+  // ============================================================
 
   Widget _buildMyPosts(String userId) {
     return StreamBuilder<
@@ -623,7 +675,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   size: 55,
                   color: Colors.grey,
                 ),
+
                 SizedBox(height: 12),
+
                 Text(
                   'আপনার কোনো Post নেই।',
                   style: TextStyle(
@@ -682,7 +736,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           color: Colors.blue,
                         ),
                       ),
+
                       const SizedBox(width: 10),
+
                       Expanded(
                         child: Text(
                           data['userName'] ??
@@ -693,6 +749,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                       ),
+
                       if (timestamp != null)
                         Text(
                           _formatDate(timestamp),
@@ -707,6 +764,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   if (text.isNotEmpty) ...[
                     const SizedBox(height: 14),
+
                     Text(
                       text,
                       style: const TextStyle(
@@ -719,6 +777,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (imageUrl != null &&
                       imageUrl.isNotEmpty) ...[
                     const SizedBox(height: 12),
+
                     ClipRRect(
                       borderRadius:
                           BorderRadius.circular(10),
@@ -753,13 +812,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         icon: Icons.favorite_border,
                         count: likeCount,
                       ),
+
                       const SizedBox(width: 20),
+
                       _PostCount(
                         icon:
                             Icons.comment_outlined,
                         count: commentCount,
                       ),
+
                       const SizedBox(width: 20),
+
                       _PostCount(
                         icon: Icons.share_outlined,
                         count: shareCount,
@@ -775,11 +838,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ============================================================
+  // NUMBER
+  // ============================================================
+
   static int _numberValue(dynamic value) {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return 0;
   }
+
+  // ============================================================
+  // DATE
+  // ============================================================
 
   static String _formatDate(
     Timestamp timestamp,
@@ -832,7 +903,9 @@ class _PostCount extends StatelessWidget {
           size: 19,
           color: Colors.grey.shade600,
         ),
+
         const SizedBox(width: 5),
+
         Text(
           count.toString(),
           style: TextStyle(
@@ -869,7 +942,9 @@ class _ProfileStat extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
+
         const SizedBox(height: 3),
+
         Text(
           label,
           style: TextStyle(
@@ -940,8 +1015,13 @@ class _EditProfileScreenState
     _usernameController.dispose();
     _bioController.dispose();
     _phoneController.dispose();
+
     super.dispose();
   }
+
+  // ============================================================
+  // SAVE PROFILE
+  // ============================================================
 
   Future<void> _saveProfile() async {
     final name =
@@ -999,6 +1079,10 @@ class _EditProfileScreenState
       });
     }
   }
+
+  // ============================================================
+  // BUILD EDIT PROFILE
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -1187,6 +1271,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 onTap: () {},
               ),
+
               ListTile(
                 leading: const Icon(
                   Icons.lock_outline,
@@ -1229,6 +1314,7 @@ class SettingsScreen extends StatelessWidget {
                 value: true,
                 onChanged: (value) {},
               ),
+
               SwitchListTile(
                 secondary: const Icon(
                   Icons.chat_bubble_outline,
@@ -1280,6 +1366,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 onTap: () {},
               ),
+
               ListTile(
                 leading: const Icon(
                   Icons.info_outline,
@@ -1359,6 +1446,7 @@ class _SettingsSection extends StatelessWidget {
               ),
             ),
           ),
+
           ...children,
         ],
       ),
