@@ -14,24 +14,21 @@ class RevenueService {
       FirebaseAuth.instance;
 
   // ============================================================
-  // FIRESTORE REFERENCES
+  // ADMIN REVENUE SETTINGS
   // ============================================================
 
-  CollectionReference<Map<String, dynamic>>
-      get _users =>
-          _firestore.collection('users');
+  static const double adminRevenuePercent = 20.0;
+
+  // ============================================================
+  // OWNER WALLET
+  // ============================================================
 
   DocumentReference<Map<String, dynamic>>
-      get _revenue =>
-          _firestore
-              .collection('settings')
-              .doc('revenue');
-
-  DocumentReference<Map<String, dynamic>>
-      get _ownerWallet =>
-          _firestore
-              .collection('settings')
-              .doc('owner_wallet');
+      get _ownerWalletRef {
+    return _firestore
+        .collection('settings')
+        .doc('owner_wallet');
+  }
 
   // ============================================================
   // CURRENT USER
@@ -41,102 +38,84 @@ class RevenueService {
       _auth.currentUser;
 
   // ============================================================
-  // EARNING SPLIT
-  //
-  // Example:
-  //
-  // Generated = ৳100
-  // User = ৳80
-  // Admin = ৳20
-  //
-  // Default:
-  // User 80%
-  // Admin 20%
-  // ============================================================
-
-  static const double defaultUserPercentage = 0.80;
-
-  static const double defaultAdminPercentage = 0.20;
-
-  // ============================================================
-  // CALCULATE USER SHARE
-  // ============================================================
-
-  double calculateUserAmount(
-    double generatedAmount,
-  ) {
-    if (generatedAmount <= 0) {
-      return 0;
-    }
-
-    return generatedAmount *
-        defaultUserPercentage;
-  }
-
-  // ============================================================
   // CALCULATE ADMIN REVENUE
   // ============================================================
 
   double calculateAdminRevenue(
-    double generatedAmount,
+    double totalAmount,
   ) {
-    if (generatedAmount <= 0) {
+    if (totalAmount <= 0) {
       return 0;
     }
 
-    return generatedAmount *
-        defaultAdminPercentage;
+    return totalAmount *
+        (adminRevenuePercent / 100);
   }
 
   // ============================================================
-  // ADD EARNING
-  //
-  // This method:
-  //
-  // 1. Calculates User amount
-  // 2. Calculates Admin revenue
-  // 3. Adds User amount to User wallet
-  // 4. Adds Admin revenue to Admin revenue
-  // 5. Updates generated amount
-  //
-  // Example:
-  //
-  // generatedAmount = 100
-  //
-  // User wallet +80
-  // Admin revenue +20
+  // CALCULATE USER EARNING
   // ============================================================
 
-  Future<void> addEarning({
-    required double generatedAmount,
-    String? source,
+  double calculateUserEarning(
+    double totalAmount,
+  ) {
+    if (totalAmount <= 0) {
+      return 0;
+    }
+
+    final adminRevenue =
+        calculateAdminRevenue(
+      totalAmount,
+    );
+
+    return totalAmount - adminRevenue;
+  }
+
+  // ============================================================
+  // ADD REVENUE
+  //
+  // Example:
+  // totalAmount = 100
+  //
+  // Admin = 20
+  // User  = 80
+  // ============================================================
+
+  Future<void> addRevenue({
+    required double totalAmount,
+    required String source,
   }) async {
     final user = _auth.currentUser;
 
     if (user == null) {
       throw Exception(
-        'Earning পেতে প্রথমে Login করুন।',
+        'প্রথমে User Login করুন।',
       );
     }
 
-    if (generatedAmount <= 0) {
+    if (totalAmount <= 0) {
       throw Exception(
-        'Earning amount অবশ্যই 0-এর বেশি হতে হবে।',
+        'Amount অবশ্যই 0-এর বেশি হতে হবে।',
       );
     }
-
-    final userRef =
-        _users.doc(user.uid);
-
-    final userAmount =
-        calculateUserAmount(
-      generatedAmount,
-    );
 
     final adminRevenue =
         calculateAdminRevenue(
-      generatedAmount,
+      totalAmount,
     );
+
+    final userEarning =
+        calculateUserEarning(
+      totalAmount,
+    );
+
+    final userRef = _firestore
+        .collection('users')
+        .doc(user.uid);
+
+    final revenueRef = _firestore
+        .collection('revenue_transactions')
+        .doc();
 
     await _firestore.runTransaction(
       (transaction) async {
@@ -152,18 +131,10 @@ class RevenueService {
         final userData =
             userSnapshot.data() ?? {};
 
-        // ------------------------------------------------------
-        // CURRENT USER WALLET
-        // ------------------------------------------------------
-
         final currentWallet =
             _toDouble(
-          userData['walletBalance'],
+          userData['wallet'],
         );
-
-        // ------------------------------------------------------
-        // CURRENT USER TOTAL EARNING
-        // ------------------------------------------------------
 
         final currentTotalEarned =
             _toDouble(
@@ -171,67 +142,50 @@ class RevenueService {
         );
 
         // ------------------------------------------------------
-        // READ REVENUE DOCUMENT
+        // READ OWNER WALLET
         // ------------------------------------------------------
 
-        final revenueSnapshot =
+        final ownerSnapshot =
             await transaction.get(
-          _revenue,
+          _ownerWalletRef,
         );
 
-        final revenueData =
-            revenueSnapshot.data() ?? {};
+        final ownerData =
+            ownerSnapshot.data() ?? {};
 
-        // ------------------------------------------------------
-        // CURRENT ADMIN REVENUE
-        // ------------------------------------------------------
-
-        final currentAdminRevenue =
+        final currentBalance =
             _toDouble(
-          revenueData['adminRevenue'],
+          ownerData['balance'],
         );
 
-        // ------------------------------------------------------
-        // CURRENT GENERATED
-        // ------------------------------------------------------
-
-        final currentGenerated =
+        final currentTotalEarned =
             _toDouble(
-          revenueData['totalGenerated'],
+          ownerData['totalEarned'],
         );
 
         // ------------------------------------------------------
-        // CURRENT USER SHARE TOTAL
+        // NEW USER WALLET
         // ------------------------------------------------------
 
-        final currentUserShare =
-            _toDouble(
-          revenueData['totalUserEarnings'],
-        );
-
-        // ------------------------------------------------------
-        // NEW VALUES
-        // ------------------------------------------------------
-
-        final newWallet =
+        final newUserWallet =
             currentWallet +
-                userAmount;
+                userEarning;
 
         final newUserTotalEarned =
             currentTotalEarned +
-                userAmount;
+                userEarning;
 
-        final newAdminRevenue =
-            currentAdminRevenue +
+        // ------------------------------------------------------
+        // NEW OWNER WALLET
+        // ------------------------------------------------------
+
+        final newOwnerBalance =
+            currentBalance +
                 adminRevenue;
 
-        final newGenerated =
-            currentGenerated +
-                generatedAmount;
-
-        final newUserShare =
-            currentUserShare +
-                userAmount;
+        final newOwnerTotalEarned =
+            currentTotalEarned +
+                adminRevenue;
 
         // ------------------------------------------------------
         // UPDATE USER
@@ -240,8 +194,7 @@ class RevenueService {
         transaction.set(
           userRef,
           {
-            'walletBalance':
-                newWallet,
+            'wallet': newUserWallet,
             'totalEarned':
                 newUserTotalEarned,
             'updatedAt':
@@ -253,74 +206,20 @@ class RevenueService {
         );
 
         // ------------------------------------------------------
-        // UPDATE REVENUE
-        // ------------------------------------------------------
-
-        transaction.set(
-          _revenue,
-          {
-            'adminRevenue':
-                newAdminRevenue,
-            'totalGenerated':
-                newGenerated,
-            'totalUserEarnings':
-                newUserShare,
-            'userPercentage':
-                defaultUserPercentage,
-            'adminPercentage':
-                defaultAdminPercentage,
-            'updatedAt':
-                FieldValue.serverTimestamp(),
-          },
-          SetOptions(
-            merge: true,
-          ),
-        );
-
-        // ------------------------------------------------------
         // UPDATE OWNER WALLET
-        //
-        // Admin revenue is added to owner wallet.
         // ------------------------------------------------------
 
-        final ownerSnapshot =
-            await transaction.get(
-          _ownerWallet,
-        );
-
-        final ownerData =
-            ownerSnapshot.data() ?? {};
-
-        final currentOwnerBalance =
-            _toDouble(
-          ownerData['balance'],
-        );
-
-        final currentOwnerEarned =
-            _toDouble(
-          ownerData['totalEarned'],
-        );
-
-        final newOwnerBalance =
-            currentOwnerBalance +
-                adminRevenue;
-
-        final newOwnerEarned =
-            currentOwnerEarned +
-                adminRevenue;
-
         transaction.set(
-          _ownerWallet,
+          _ownerWalletRef,
           {
             'balance':
                 newOwnerBalance,
             'totalEarned':
-                newOwnerEarned,
+                newOwnerTotalEarned,
             'totalPaidToUsers':
                 _toDouble(
               ownerData[
-                'totalPaidToUsers'
-              ],
+                  'totalPaidToUsers'],
             ),
             'updatedAt':
                 FieldValue.serverTimestamp(),
@@ -331,27 +230,22 @@ class RevenueService {
         );
 
         // ------------------------------------------------------
-        // EARNING HISTORY
+        // REVENUE TRANSACTION
         // ------------------------------------------------------
 
-        final historyRef =
-            _firestore
-                .collection('earning_history')
-                .doc();
-
         transaction.set(
-          historyRef,
+          revenueRef,
           {
-            'userId':
-                user.uid,
-            'generatedAmount':
-                generatedAmount,
+            'userId': user.uid,
+            'totalAmount':
+                totalAmount,
             'userAmount':
-                userAmount,
-            'adminRevenue':
+                userEarning,
+            'adminAmount':
                 adminRevenue,
-            'source':
-                source ?? 'app',
+            'adminPercent':
+                adminRevenuePercent,
+            'source': source,
             'createdAt':
                 FieldValue.serverTimestamp(),
           },
@@ -361,93 +255,36 @@ class RevenueService {
   }
 
   // ============================================================
-  // REVENUE STREAM
-  // ============================================================
-
-  Stream<DocumentSnapshot<Map<String, dynamic>>>
-      revenueStream() {
-    return _revenue.snapshots();
-  }
-
-  // ============================================================
-  // OWNER WALLET STREAM
+  // ADMIN REVENUE STREAM
   // ============================================================
 
   Stream<DocumentSnapshot<Map<String, dynamic>>>
       ownerWalletStream() {
-    return _ownerWallet.snapshots();
+    return _ownerWalletRef.snapshots();
   }
 
   // ============================================================
-  // USER WALLET STREAM
+  // REVENUE TRANSACTIONS
   // ============================================================
 
-  Stream<DocumentSnapshot<Map<String, dynamic>>>
-      userWalletStream(
-    String userId,
-  ) {
-    return _users
-        .doc(userId)
+  Stream<QuerySnapshot<Map<String, dynamic>>>
+      revenueTransactionsStream() {
+    return _firestore
+        .collection(
+          'revenue_transactions',
+        )
+        .orderBy(
+          'createdAt',
+          descending: true,
+        )
         .snapshots();
-  }
-
-  // ============================================================
-  // GET USER WALLET
-  // ============================================================
-
-  Future<double> getUserWallet(
-    String userId,
-  ) async {
-    final doc =
-        await _users.doc(userId).get();
-
-    final data =
-        doc.data() ?? {};
-
-    return _toDouble(
-      data['walletBalance'],
-    );
-  }
-
-  // ============================================================
-  // GET ADMIN REVENUE
-  // ============================================================
-
-  Future<double> getAdminRevenue() async {
-    final doc =
-        await _revenue.get();
-
-    final data =
-        doc.data() ?? {};
-
-    return _toDouble(
-      data['adminRevenue'],
-    );
-  }
-
-  // ============================================================
-  // GET OWNER WALLET
-  // ============================================================
-
-  Future<double> getOwnerWallet() async {
-    final doc =
-        await _ownerWallet.get();
-
-    final data =
-        doc.data() ?? {};
-
-    return _toDouble(
-      data['balance'],
-    );
   }
 
   // ============================================================
   // NUMBER CONVERTER
   // ============================================================
 
-  double _toDouble(
-    dynamic value,
-  ) {
+  double _toDouble(dynamic value) {
     if (value is num) {
       return value.toDouble();
     }
