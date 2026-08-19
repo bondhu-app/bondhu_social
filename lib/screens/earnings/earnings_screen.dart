@@ -26,22 +26,14 @@ class _EarningsScreenState extends State<EarningsScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      _showMessage(
-        e.toString().replaceFirst('Exception: ', ''),
-      );
-    }
-  }
-
-  void _showMessage(String message) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message),
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
         ),
       );
+    }
   }
 
   String _money(dynamic value) {
@@ -75,14 +67,11 @@ class _EarningsScreenState extends State<EarningsScreen> {
       return Scaffold(
         appBar: AppBar(
           title: const Text('Earnings & Wallet'),
-          centerTitle: true,
         ),
         body: const Center(
           child: Text(
             'প্রথমে লগইন করুন।',
-            style: TextStyle(
-              fontSize: 16,
-            ),
+            style: TextStyle(fontSize: 16),
           ),
         ),
       );
@@ -111,27 +100,18 @@ class _EarningsScreenState extends State<EarningsScreen> {
                 child: Text(
                   snapshot.error
                           .toString()
-                          .replaceFirst(
-                            'Exception: ',
-                            '',
-                          ),
+                          .replaceFirst('Exception: ', ''),
                   textAlign: TextAlign.center,
                 ),
               ),
             );
           }
 
-          final data =
-              snapshot.data?.data() ?? {};
+          final data = snapshot.data?.data() ?? {};
 
-          final balance =
-              data['balance'] ?? 0;
-
-          final totalEarned =
-              data['totalEarned'] ?? 0;
-
-          final totalWithdrawn =
-              data['totalWithdrawn'] ?? 0;
+          final balance = data['balance'] ?? 0;
+          final totalEarned = data['totalEarned'] ?? 0;
+          final totalWithdrawn = data['totalWithdrawn'] ?? 0;
 
           return RefreshIndicator(
             onRefresh: _initializeWallet,
@@ -219,9 +199,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
               ),
             ),
 
-            const Divider(
-              height: 30,
-            ),
+            const Divider(height: 30),
 
             Row(
               children: [
@@ -254,10 +232,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
   ) {
     return Column(
       children: [
-        Icon(
-          icon,
-          size: 28,
-        ),
+        Icon(icon, size: 28),
         const SizedBox(height: 6),
         Text(
           title,
@@ -280,8 +255,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
   Widget _transactionList() {
     return StreamBuilder<
         QuerySnapshot<Map<String, dynamic>>>(
-      stream:
-          _earningsService.myTransactionsStream(),
+      stream: _earningsService.myTransactionsStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
@@ -299,16 +273,12 @@ class _EarningsScreenState extends State<EarningsScreen> {
             child: Text(
               snapshot.error
                       .toString()
-                      .replaceFirst(
-                        'Exception: ',
-                        '',
-                      ),
+                      .replaceFirst('Exception: ', ''),
             ),
           );
         }
 
-        final docs =
-            snapshot.data?.docs ?? [];
+        final docs = snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Card(
@@ -326,38 +296,23 @@ class _EarningsScreenState extends State<EarningsScreen> {
         return ListView.builder(
           itemCount: docs.length,
           shrinkWrap: true,
-          physics:
-              const NeverScrollableScrollPhysics(),
+          physics: const NeverScrollableScrollPhysics(),
           itemBuilder: (context, index) {
-            final data =
-                docs[index].data();
+            final data = docs[index].data();
 
             final type =
                 data['type']?.toString() ?? '';
 
             final description =
-                data['description']
-                        ?.toString() ??
-                    type;
+                data['description']?.toString() ?? type;
 
-            final amount =
-                data['amount'] ?? 0;
+            final amount = data['amount'] ?? 0;
 
             final transactionType =
-                data['transactionType']
-                        ?.toString() ??
-                    '';
-
-            final status =
-                data['status']
-                        ?.toString() ??
-                    'unknown';
+                data['transactionType']?.toString() ?? '';
 
             final isEarning =
                 transactionType == 'earning';
-
-            final isPending =
-                status == 'pending';
 
             return Card(
               child: ListTile(
@@ -374,20 +329,16 @@ class _EarningsScreenState extends State<EarningsScreen> {
                       : description,
                 ),
                 subtitle: Text(
-                  'Status: $status',
+                  'Status: ${data['status'] ?? 'unknown'}',
                 ),
                 trailing: Text(
-                  '${isEarning ? '+' : '-'}'
-                  '${_money(amount)}',
+                  '${isEarning ? '+' : '-'}${_money(amount)}',
                   style: TextStyle(
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                     fontSize: 15,
-                    color: isPending
-                        ? Colors.orange
-                        : isEarning
-                            ? Colors.green
-                            : Colors.red,
+                    color: isEarning
+                        ? Colors.green
+                        : Colors.red,
                   ),
                 ),
               ),
@@ -416,17 +367,13 @@ class WithdrawScreen extends StatefulWidget {
       _WithdrawScreenState();
 }
 
-class _WithdrawScreenState
-    extends State<WithdrawScreen> {
-  final GlobalKey<FormState> _formKey =
-      GlobalKey<FormState>();
+class _WithdrawScreenState extends State<WithdrawScreen> {
+  final _formKey = GlobalKey<FormState>();
 
-  final TextEditingController
-      _amountController =
+  final TextEditingController _amountController =
       TextEditingController();
 
-  final TextEditingController
-      _accountController =
+  final TextEditingController _accountController =
       TextEditingController();
 
   String _method = 'bKash';
@@ -456,27 +403,13 @@ class _WithdrawScreenState
     return 0;
   }
 
-  void _showMessage(String message) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
-  }
-
   Future<void> _withdraw() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
     final amount =
-        double.tryParse(
-      _amountController.text.trim(),
-    );
+        double.tryParse(_amountController.text.trim());
 
     if (amount == null) {
       return;
@@ -487,32 +420,35 @@ class _WithdrawScreenState
     });
 
     try {
-      await widget.earningsService
-          .createWithdrawRequest(
+      await widget.earningsService.createWithdrawRequest(
         amount: amount,
         method: _method,
-        account:
-            _accountController.text.trim(),
+        account: _accountController.text.trim(),
       );
 
       if (!mounted) return;
 
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Withdraw request সফলভাবে পাঠানো হয়েছে।',
+          ),
+        ),
+      );
+
       _amountController.clear();
       _accountController.clear();
-
-      _showMessage(
-        'Withdraw request সফলভাবে পাঠানো হয়েছে।',
-      );
 
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
 
-      _showMessage(
-        e.toString().replaceFirst(
-              'Exception: ',
-              '',
-            ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -532,65 +468,34 @@ class _WithdrawScreenState
       ),
       body: StreamBuilder<
           DocumentSnapshot<Map<String, dynamic>>>(
-        stream:
-            widget.earningsService
-                .walletStream(),
+        stream: widget.earningsService.walletStream(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding:
-                    const EdgeInsets.all(20),
-                child: Text(
-                  snapshot.error
-                          .toString()
-                          .replaceFirst(
-                            'Exception: ',
-                            '',
-                          ),
-                  textAlign:
-                      TextAlign.center,
-                ),
-              ),
-            );
-          }
+          final data = snapshot.data?.data() ?? {};
 
-          final data =
-              snapshot.data?.data() ?? {};
-
-          final balance =
-              _balanceFromData(data);
+          final balance = _balanceFromData(data);
 
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
               Card(
                 child: Padding(
-                  padding:
-                      const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
                       const Icon(
-                        Icons
-                            .account_balance_wallet,
+                        Icons.account_balance_wallet,
                         size: 45,
                       ),
-
                       const SizedBox(height: 8),
-
                       const Text(
                         'Available Balance',
                       ),
-
                       const SizedBox(height: 5),
-
                       Text(
                         '৳${balance.toStringAsFixed(2)}',
-                        style:
-                            const TextStyle(
+                        style: const TextStyle(
                           fontSize: 30,
-                          fontWeight:
-                              FontWeight.bold,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
@@ -602,55 +507,39 @@ class _WithdrawScreenState
 
               Card(
                 child: Padding(
-                  padding:
-                      const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   child: Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
+                          CrossAxisAlignment.start,
                       children: [
                         const Text(
                           'Withdraw Amount',
-                          style:
-                              TextStyle(
+                          style: TextStyle(
                             fontSize: 18,
-                            fontWeight:
-                                FontWeight.bold,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
 
-                        const SizedBox(
-                          height: 10,
-                        ),
+                        const SizedBox(height: 10),
 
                         TextFormField(
-                          controller:
-                              _amountController,
+                          controller: _amountController,
                           keyboardType:
-                              const TextInputType
-                                  .numberWithOptions(
+                              const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
                           decoration:
                               const InputDecoration(
-                            labelText:
-                                'Amount',
-                            hintText:
-                                'Minimum ৳100',
-                            prefixText:
-                                '৳ ',
-                            border:
-                                OutlineInputBorder(),
+                            labelText: 'Amount',
+                            hintText: 'Minimum ৳100',
+                            prefixText: '৳ ',
+                            border: OutlineInputBorder(),
                           ),
-                          validator:
-                              (value) {
-                            if (value ==
-                                    null ||
-                                value
-                                    .trim()
-                                    .isEmpty) {
+                          validator: (value) {
+                            if (value == null ||
+                                value.trim().isEmpty) {
                               return 'Amount দিন';
                             }
 
@@ -659,23 +548,15 @@ class _WithdrawScreenState
                               value.trim(),
                             );
 
-                            if (amount ==
-                                null) {
+                            if (amount == null) {
                               return 'সঠিক amount দিন';
                             }
 
-                            if (amount <= 0) {
-                              return 'Amount 0-এর বেশি হতে হবে';
-                            }
-
-                            if (amount <
-                                EarningsService
-                                    .minimumWithdrawAmount) {
+                            if (amount < 100) {
                               return 'Minimum withdraw ৳100';
                             }
 
-                            if (amount >
-                                balance) {
+                            if (amount > balance) {
                               return 'আপনার balance পর্যাপ্ত নয়';
                             }
 
@@ -683,101 +564,70 @@ class _WithdrawScreenState
                           },
                         ),
 
-                        const SizedBox(
-                          height: 18,
-                        ),
+                        const SizedBox(height: 18),
 
                         const Text(
                           'Payment Method',
-                          style:
-                              TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
-                            fontWeight:
-                                FontWeight.bold,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
 
-                        const SizedBox(
-                          height: 8,
-                        ),
+                        const SizedBox(height: 8),
 
-                        DropdownButtonFormField<
-                            String>(
-                          initialValue:
-                              _method,
+                        DropdownButtonFormField<String>(
+                          value: _method,
                           decoration:
                               const InputDecoration(
-                            border:
-                                OutlineInputBorder(),
+                            border: OutlineInputBorder(),
                           ),
                           items: const [
                             DropdownMenuItem(
                               value: 'bKash',
-                              child:
-                                  Text('bKash'),
+                              child: Text('bKash'),
                             ),
                             DropdownMenuItem(
                               value: 'Nagad',
-                              child:
-                                  Text('Nagad'),
+                              child: Text('Nagad'),
                             ),
                             DropdownMenuItem(
                               value: 'Rocket',
-                              child:
-                                  Text('Rocket'),
+                              child: Text('Rocket'),
                             ),
                             DropdownMenuItem(
                               value: 'Bank',
-                              child:
-                                  Text('Bank'),
+                              child: Text('Bank'),
                             ),
                           ],
-                          onChanged:
-                              (value) {
-                            if (value ==
-                                null) {
-                              return;
-                            }
+                          onChanged: (value) {
+                            if (value == null) return;
 
                             setState(() {
-                              _method =
-                                  value;
+                              _method = value;
                             });
                           },
                         ),
 
-                        const SizedBox(
-                          height: 18,
-                        ),
+                        const SizedBox(height: 18),
 
                         TextFormField(
-                          controller:
-                              _accountController,
-                          keyboardType:
-                              TextInputType.phone,
+                          controller: _accountController,
+                          keyboardType: TextInputType.phone,
                           decoration:
                               const InputDecoration(
-                            labelText:
-                                'Payment Account',
+                            labelText: 'Payment Account',
                             hintText:
                                 'bKash/Nagad/Bank number',
-                            border:
-                                OutlineInputBorder(),
+                            border: OutlineInputBorder(),
                           ),
-                          validator:
-                              (value) {
-                            if (value ==
-                                    null ||
-                                value
-                                    .trim()
-                                    .isEmpty) {
+                          validator: (value) {
+                            if (value == null ||
+                                value.trim().isEmpty) {
                               return 'Payment account দিন';
                             }
 
-                            if (value
-                                    .trim()
-                                    .length <
-                                5) {
+                            if (value.trim().length < 5) {
                               return 'সঠিক account দিন';
                             }
 
@@ -785,39 +635,29 @@ class _WithdrawScreenState
                           },
                         ),
 
-                        const SizedBox(
-                          height: 22,
-                        ),
+                        const SizedBox(height: 22),
 
                         SizedBox(
-                          width:
-                              double.infinity,
+                          width: double.infinity,
                           height: 52,
-                          child:
-                              ElevatedButton(
+                          child: ElevatedButton(
                             onPressed:
-                                _loading
-                                    ? null
-                                    : _withdraw,
+                                _loading ? null : _withdraw,
                             child: _loading
                                 ? const SizedBox(
                                     width: 24,
                                     height: 24,
                                     child:
                                         CircularProgressIndicator(
-                                      strokeWidth:
-                                          2,
+                                      strokeWidth: 2,
                                     ),
                                   )
                                 : const Text(
                                     'Submit Withdraw Request',
-                                    style:
-                                        TextStyle(
-                                      fontSize:
-                                          16,
+                                    style: TextStyle(
+                                      fontSize: 16,
                                       fontWeight:
-                                          FontWeight
-                                              .bold,
+                                          FontWeight.bold,
                                     ),
                                   ),
                           ),
@@ -834,8 +674,7 @@ class _WithdrawScreenState
                 'Withdraw Requests',
                 style: TextStyle(
                   fontSize: 20,
-                  fontWeight:
-                      FontWeight.bold,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
 
@@ -852,40 +691,30 @@ class _WithdrawScreenState
   Widget _withdrawRequests() {
     return StreamBuilder<
         QuerySnapshot<Map<String, dynamic>>>(
-      stream: widget.earningsService
-          .myWithdrawRequestsStream(),
+      stream:
+          widget.earningsService.myWithdrawRequestsStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
           return const Center(
-            child:
-                CircularProgressIndicator(),
+            child: CircularProgressIndicator(),
           );
         }
 
         if (snapshot.hasError) {
-          return Padding(
-            padding:
-                const EdgeInsets.all(8),
-            child: Text(
-              snapshot.error
-                      .toString()
-                      .replaceFirst(
-                        'Exception: ',
-                        '',
-                      ),
-            ),
+          return Text(
+            snapshot.error
+                    .toString()
+                    .replaceFirst('Exception: ', ''),
           );
         }
 
-        final docs =
-            snapshot.data?.docs ?? [];
+        final docs = snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
           return const Card(
             child: Padding(
-              padding:
-                  EdgeInsets.all(20),
+              padding: EdgeInsets.all(20),
               child: Center(
                 child: Text(
                   'কোনো withdraw request নেই।',
@@ -900,56 +729,41 @@ class _WithdrawScreenState
           shrinkWrap: true,
           physics:
               const NeverScrollableScrollPhysics(),
-          itemBuilder:
-              (context, index) {
+          itemBuilder: (context, index) {
             final doc = docs[index];
-
             final data = doc.data();
 
-            final amount =
-                _toDouble(
-              data['amount'],
-            );
+            final amount = data['amount'] is num
+                ? (data['amount'] as num).toDouble()
+                : double.tryParse(
+                      '${data['amount']}',
+                    ) ??
+                    0;
 
             final status =
-                data['status']
-                        ?.toString() ??
-                    'pending';
-
-            final method =
-                data['method']
-                        ?.toString() ??
-                    '';
-
-            final account =
-                data['account']
-                        ?.toString() ??
-                    '';
+                data['status']?.toString() ?? 'pending';
 
             return Card(
               child: ListTile(
-                leading:
-                    CircleAvatar(
-                  child: Icon(
-                    status == 'completed'
-                        ? Icons.check
-                        : status ==
-                                'rejected'
-                            ? Icons.close
-                            : Icons.payments,
-                  ),
+                leading: const CircleAvatar(
+                  child: Icon(Icons.payments),
                 ),
                 title: Text(
                   '৳${amount.toStringAsFixed(2)}',
                 ),
                 subtitle: Text(
-                  '$method • $account\n'
+                  '${data['method'] ?? ''} • '
+                  '${data['account'] ?? ''}\n'
                   'Status: $status',
                 ),
                 isThreeLine: true,
-                trailing: _statusWidget(
-                  status,
-                ),
+                trailing: status == 'pending'
+                    ? TextButton(
+                        onPressed: () =>
+                            _cancel(doc.id),
+                        child: const Text('Cancel'),
+                      )
+                    : null,
               ),
             );
           },
@@ -958,46 +772,30 @@ class _WithdrawScreenState
     );
   }
 
-  Widget? _statusWidget(
-    String status,
-  ) {
-    switch (status) {
-      case 'completed':
-        return const Icon(
-          Icons.check_circle,
-          color: Colors.green,
-        );
+  Future<void> _cancel(String requestId) async {
+    try {
+      await widget.earningsService
+          .cancelWithdrawRequest(requestId);
 
-      case 'rejected':
-        return const Icon(
-          Icons.cancel,
-          color: Colors.red,
-        );
+      if (!mounted) return;
 
-      case 'cancelled':
-        return const Icon(
-          Icons.block,
-          color: Colors.grey,
-        );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Withdraw request বাতিল করা হয়েছে।',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
 
-      case 'pending':
-      default:
-        return const Icon(
-          Icons.hourglass_top,
-          color: Colors.orange,
-        );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
     }
-  }
-
-  double _toDouble(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    if (value is String) {
-      return double.tryParse(value) ?? 0;
-    }
-
-    return 0;
   }
 }
