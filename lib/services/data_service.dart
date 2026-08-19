@@ -21,6 +21,28 @@ class DataService {
   User? get currentUser => _auth.currentUser;
 
   // ============================================================
+  // ADMIN CHECK
+  // ============================================================
+
+  Future<bool> isAdmin() async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      return false;
+    }
+
+    final doc = await _users.doc(user.uid).get();
+
+    if (!doc.exists) {
+      return false;
+    }
+
+    final data = doc.data();
+
+    return data?['role'] == 'admin';
+  }
+
+  // ============================================================
   // USER PROFILE
   // ============================================================
 
@@ -126,11 +148,9 @@ class DataService {
           user.photoURL,
       'text': text.trim(),
       'imageUrl': imageUrl,
-
       'likeCount': 0,
       'commentCount': 0,
       'shareCount': 0,
-
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
@@ -571,4 +591,4 @@ class DataService {
         .limit(20)
         .get();
   }
-} 
+}
