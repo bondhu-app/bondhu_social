@@ -9,6 +9,94 @@ class PostDetailsScreen extends StatelessWidget {
     required this.postId,
   });
 
+  int _number(dynamic value) {
+    if (value is num) {
+      return value.toInt();
+    }
+
+    if (value is String) {
+      return int.tryParse(value) ?? 0;
+    }
+
+    return 0;
+  }
+
+  Future<void> _deletePost(
+    BuildContext context,
+  ) async {
+    final confirm =
+        await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Delete Post',
+          ),
+          content: const Text(
+            'আপনি কি এই Post Delete করতে চান?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child: const Text(
+                'না',
+              ),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              child: const Text(
+                'Delete',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('posts')
+          .doc(postId)
+          .delete();
+
+      if (!context.mounted) return;
+
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Post Delete হয়েছে।',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            'Post Delete করা যায়নি: $error',
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -19,6 +107,17 @@ class PostDetailsScreen extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
+        actions: [
+          IconButton(
+            onPressed: () {
+              _deletePost(context);
+            },
+            icon: const Icon(
+              Icons.delete_outline,
+              color: Colors.red,
+            ),
+          ),
+        ],
       ),
       body: StreamBuilder<
           DocumentSnapshot<Map<String, dynamic>>>(
@@ -26,25 +125,33 @@ class PostDetailsScreen extends StatelessWidget {
             .collection('posts')
             .doc(postId)
             .snapshots(),
-        builder: (context, snapshot) {
+        builder: (
+          context,
+          snapshot,
+        ) {
           if (snapshot.connectionState ==
               ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(),
+              child:
+                  CircularProgressIndicator(),
             );
           }
 
           if (snapshot.hasError) {
             return Center(
               child: Text(
-                'Post লোড করা যায়নি.\n${snapshot.error}',
-                textAlign: TextAlign.center,
+                'Post লোড করা যায়নি.\n\n${snapshot.error}',
+                textAlign:
+                    TextAlign.center,
               ),
             );
           }
 
-          if (!snapshot.hasData ||
-              !snapshot.data!.exists) {
+          final document =
+              snapshot.data;
+
+          if (document == null ||
+              !document.exists) {
             return const Center(
               child: Text(
                 'Post পাওয়া যায়নি।',
@@ -53,11 +160,15 @@ class PostDetailsScreen extends StatelessWidget {
           }
 
           final data =
-              snapshot.data!.data() ?? {};
+              document.data() ?? {};
 
           final userName =
               data['userName']?.toString() ??
                   'বন্ধু';
+
+          final userId =
+              data['userId']?.toString() ??
+                  '';
 
           final text =
               data['text']?.toString() ??
@@ -67,20 +178,23 @@ class PostDetailsScreen extends StatelessWidget {
               data['imageUrl']?.toString();
 
           final likes =
-              data['likeCount'] ?? 0;
+              _number(
+            data['likeCount'],
+          );
 
           final comments =
-              data['commentCount'] ?? 0;
+              _number(
+            data['commentCount'],
+          );
 
           final shares =
-              data['shareCount'] ?? 0;
-
-          final userId =
-              data['userId']?.toString() ??
-                  '';
+              _number(
+            data['shareCount'],
+          );
 
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding:
+                const EdgeInsets.all(16),
             children: [
               Card(
                 child: Padding(
@@ -97,26 +211,39 @@ class PostDetailsScreen extends StatelessWidget {
                               Icons.person,
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 12),
                           Expanded(
-                            child: Text(
-                              userName,
-                              style:
-                                  const TextStyle(
-                                fontSize: 18,
-                                fontWeight:
-                                    FontWeight.bold,
-                              ),
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment
+                                      .start,
+                              children: [
+                                Text(
+                                  userName,
+                                  style:
+                                      const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight:
+                                        FontWeight.bold,
+                                  ),
+                                ),
+                                if (userId.isNotEmpty)
+                                  Text(
+                                    'User ID: $userId',
+                                    style:
+                                        TextStyle(
+                                      fontSize: 11,
+                                      color:
+                                          Colors.grey,
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-
-                      const Divider(
-                        height: 30,
-                      ),
-
-                      if (text.isNotEmpty)
+                      if (text.isNotEmpty) ...[
+                        const SizedBox(height: 18),
                         Text(
                           text,
                           style:
@@ -125,15 +252,14 @@ class PostDetailsScreen extends StatelessWidget {
                             height: 1.5,
                           ),
                         ),
-
+                      ],
                       if (imageUrl != null &&
                           imageUrl.isNotEmpty) ...[
-                        const SizedBox(height: 15),
+                        const SizedBox(height: 16),
                         ClipRRect(
                           borderRadius:
-                              BorderRadius.circular(
-                            12,
-                          ),
+                              BorderRadius
+                                  .circular(12),
                           child: Image.network(
                             imageUrl,
                             width:
@@ -148,43 +274,47 @@ class PostDetailsScreen extends StatelessWidget {
                               return Container(
                                 height: 200,
                                 color: Colors
-                                    .grey
-                                    .shade200,
+                                    .grey.shade200,
                                 alignment:
                                     Alignment.center,
                                 child:
                                     const Icon(
                                   Icons
                                       .broken_image,
-                                  size: 60,
+                                  size: 50,
                                 ),
                               );
                             },
                           ),
                         ),
                       ],
-
-                      const SizedBox(height: 20),
-
+                      const SizedBox(height: 18),
+                      const Divider(),
+                      const SizedBox(height: 8),
                       Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment
-                                .spaceAround,
                         children: [
-                          _count(
-                            Icons.favorite,
-                            'Likes',
-                            likes,
+                          Expanded(
+                            child: _count(
+                              Icons
+                                  .favorite_border,
+                              'Likes',
+                              likes,
+                            ),
                           ),
-                          _count(
-                            Icons.comment,
-                            'Comments',
-                            comments,
+                          Expanded(
+                            child: _count(
+                              Icons
+                                  .comment_outlined,
+                              'Comments',
+                              comments,
+                            ),
                           ),
-                          _count(
-                            Icons.share,
-                            'Shares',
-                            shares,
+                          Expanded(
+                            child: _count(
+                              Icons.share_outlined,
+                              'Shares',
+                              shares,
+                            ),
                           ),
                         ],
                       ),
@@ -192,39 +322,39 @@ class PostDetailsScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
-
               Card(
                 child: ListTile(
                   leading: const Icon(
-                    Icons.person_search,
+                    Icons.info_outline,
                   ),
                   title: const Text(
-                    'Author User ID',
+                    'Post ID',
                   ),
                   subtitle: Text(
-                    userId.isEmpty
-                        ? 'নেই'
-                        : userId,
+                    postId,
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              FilledButton.icon(
-                onPressed: () {
-                  _confirmDelete(
-                    context,
-                    postId,
-                  );
-                },
-                icon: const Icon(
-                  Icons.delete,
-                ),
-                label: const Text(
-                  'Delete Post',
+              SizedBox(
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    _deletePost(context);
+                  },
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: Colors.red,
+                  ),
+                  label: const Text(
+                    'Delete Post',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -237,16 +367,18 @@ class PostDetailsScreen extends StatelessWidget {
   Widget _count(
     IconData icon,
     String title,
-    dynamic value,
+    int value,
   ) {
     return Column(
       children: [
         Icon(icon),
-        const SizedBox(height: 4),
+        const SizedBox(height: 5),
         Text(
           value.toString(),
           style: const TextStyle(
-            fontWeight: FontWeight.bold,
+            fontSize: 17,
+            fontWeight:
+                FontWeight.bold,
           ),
         ),
         Text(
@@ -256,66 +388,6 @@ class PostDetailsScreen extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  static Future<void> _confirmDelete(
-    BuildContext context,
-    String postId,
-  ) async {
-    final result =
-        await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text(
-            'Delete Post?',
-          ),
-          content: const Text(
-            'এই Post স্থায়ীভাবে Delete করবেন?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                  false,
-                );
-              },
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                  true,
-                );
-              },
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result != true) return;
-
-    await FirebaseFirestore.instance
-        .collection('posts')
-        .doc(postId)
-        .delete();
-
-    if (!context.mounted) return;
-
-    Navigator.pop(context);
-
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Post Delete করা হয়েছে।',
-        ),
-      ),
     );
   }
 }
