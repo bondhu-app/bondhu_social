@@ -163,7 +163,9 @@ class EarningsService {
     return {
       'balance': _toDouble(data['balance']),
       'totalEarned': _toDouble(data['totalEarned']),
-      'totalPaidToUsers': _toDouble(data['totalPaidToUsers']),
+      'totalPaidToUsers': _toDouble(
+        data['totalPaidToUsers'],
+      ),
     };
   }
 
@@ -175,12 +177,14 @@ class EarningsService {
     final snapshot = await _ownerWallet.get();
 
     if (!snapshot.exists) {
-      await _ownerWallet.set({
-        'balance': 0.0,
-        'totalEarned': 0.0,
-        'totalPaidToUsers': 0.0,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await _ownerWallet.set(
+        {
+          'balance': 0.0,
+          'totalEarned': 0.0,
+          'totalPaidToUsers': 0.0,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+      );
 
       return;
     }
@@ -267,8 +271,7 @@ class EarningsService {
 
     await _firestore.runTransaction(
       (transaction) async {
-        final userSnapshot =
-            await transaction.get(userRef);
+        final userSnapshot = await transaction.get(userRef);
 
         if (!userSnapshot.exists) {
           throw Exception(
@@ -276,8 +279,7 @@ class EarningsService {
           );
         }
 
-        final userData =
-            userSnapshot.data() ?? {};
+        final userData = userSnapshot.data() ?? {};
 
         final currentBalance =
             _toDouble(userData['balance']);
@@ -288,12 +290,9 @@ class EarningsService {
         transaction.set(
           userRef,
           {
-            'balance':
-                currentBalance + amount,
-            'totalEarned':
-                currentTotalEarned + amount,
-            'updatedAt':
-                FieldValue.serverTimestamp(),
+            'balance': currentBalance + amount,
+            'totalEarned': currentTotalEarned + amount,
+            'updatedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),
         );
@@ -304,13 +303,11 @@ class EarningsService {
             'userId': user.uid,
             'amount': amount,
             'type': cleanType,
-            'description':
-                description?.trim() ?? '',
+            'description': description?.trim() ?? '',
             'referenceId': referenceId,
             'status': 'completed',
             'transactionType': 'earning',
-            'createdAt':
-                FieldValue.serverTimestamp(),
+            'createdAt': FieldValue.serverTimestamp(),
           },
         );
       },
@@ -318,7 +315,7 @@ class EarningsService {
   }
 
   // ============================================================
-  // ADMIN / SYSTEM REWARD USER
+  // ADMIN REWARD USER
   // ============================================================
 
   Future<void> addAdminReward({
@@ -328,9 +325,7 @@ class EarningsService {
     String? referenceId,
   }) async {
     if (userId.trim().isEmpty) {
-      throw Exception(
-        'User ID পাওয়া যায়নি।',
-      );
+      throw Exception('User ID পাওয়া যায়নি।');
     }
 
     _validateAmount(amount);
@@ -341,8 +336,7 @@ class EarningsService {
 
     await _firestore.runTransaction(
       (transaction) async {
-        final userSnapshot =
-            await transaction.get(userRef);
+        final userSnapshot = await transaction.get(userRef);
 
         if (!userSnapshot.exists) {
           throw Exception(
@@ -350,11 +344,9 @@ class EarningsService {
           );
         }
 
-        final data =
-            userSnapshot.data() ?? {};
+        final data = userSnapshot.data() ?? {};
 
-        final balance =
-            _toDouble(data['balance']);
+        final balance = _toDouble(data['balance']);
 
         final totalEarned =
             _toDouble(data['totalEarned']);
@@ -363,10 +355,8 @@ class EarningsService {
           userRef,
           {
             'balance': balance + amount,
-            'totalEarned':
-                totalEarned + amount,
-            'updatedAt':
-                FieldValue.serverTimestamp(),
+            'totalEarned': totalEarned + amount,
+            'updatedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),
         );
@@ -381,8 +371,7 @@ class EarningsService {
             'referenceId': referenceId,
             'status': 'completed',
             'transactionType': 'earning',
-            'createdAt':
-                FieldValue.serverTimestamp(),
+            'createdAt': FieldValue.serverTimestamp(),
           },
         );
       },
@@ -439,11 +428,9 @@ class EarningsService {
       );
     }
 
-    final referrerDoc =
-        referralQuery.docs.first;
+    final referrerDoc = referralQuery.docs.first;
 
-    final referrerId =
-        referrerDoc.id;
+    final referrerId = referrerDoc.id;
 
     if (referrerId == newUser) {
       throw Exception(
@@ -451,39 +438,29 @@ class EarningsService {
       );
     }
 
-    final rewardRef = _referralRewards.doc(
-      '${referrerId}_$newUser',
-    );
+    final rewardRef =
+        _referralRewards.doc('${referrerId}_$newUser');
 
-    final referrerRef =
-        _users.doc(referrerId);
+    final referrerRef = _users.doc(referrerId);
 
-    final newUserRef =
-        _users.doc(newUser);
+    final newUserRef = _users.doc(newUser);
 
-    final transactionRef =
-        _transactions.doc();
+    final transactionRef = _transactions.doc();
 
     await _firestore.runTransaction(
       (transaction) async {
         final rewardSnapshot =
-            await transaction.get(
-          rewardRef,
-        );
+            await transaction.get(rewardRef);
 
         if (rewardSnapshot.exists) {
           return;
         }
 
         final referrerSnapshot =
-            await transaction.get(
-          referrerRef,
-        );
+            await transaction.get(referrerRef);
 
         final newUserSnapshot =
-            await transaction.get(
-          newUserRef,
-        );
+            await transaction.get(newUserRef);
 
         if (!referrerSnapshot.exists) {
           throw Exception(
@@ -501,24 +478,20 @@ class EarningsService {
             referrerSnapshot.data() ?? {};
 
         final currentBalance =
-            _toDouble(
-          referrerData['balance'],
-        );
+            _toDouble(referrerData['balance']);
 
         final currentTotalEarned =
             _toDouble(
-          referrerData['totalEarned'],
-        );
+              referrerData['totalEarned'],
+            );
 
         transaction.set(
           referrerRef,
           {
             'balance':
-                currentBalance +
-                    referralReward,
+                currentBalance + referralReward,
             'totalEarned':
-                currentTotalEarned +
-                    referralReward,
+                currentTotalEarned + referralReward,
             'updatedAt':
                 FieldValue.serverTimestamp(),
           },
@@ -528,14 +501,10 @@ class EarningsService {
         transaction.set(
           rewardRef,
           {
-            'referrerId':
-                referrerId,
-            'newUserId':
-                newUser,
-            'amount':
-                referralReward,
-            'status':
-                'completed',
+            'referrerId': referrerId,
+            'newUserId': newUser,
+            'amount': referralReward,
+            'status': 'completed',
             'createdAt':
                 FieldValue.serverTimestamp(),
           },
@@ -544,20 +513,13 @@ class EarningsService {
         transaction.set(
           transactionRef,
           {
-            'userId':
-                referrerId,
-            'amount':
-                referralReward,
-            'type':
-                'referral',
-            'description':
-                'Referral reward',
-            'referenceId':
-                newUser,
-            'status':
-                'completed',
-            'transactionType':
-                'earning',
+            'userId': referrerId,
+            'amount': referralReward,
+            'type': 'referral',
+            'description': 'Referral reward',
+            'referenceId': newUser,
+            'status': 'completed',
+            'transactionType': 'earning',
             'createdAt':
                 FieldValue.serverTimestamp(),
           },
@@ -566,10 +528,8 @@ class EarningsService {
         transaction.set(
           newUserRef,
           {
-            'referredBy':
-                referrerId,
-            'referralProcessed':
-                true,
+            'referredBy': referrerId,
+            'referralProcessed': true,
             'updatedAt':
                 FieldValue.serverTimestamp(),
           },
@@ -606,22 +566,18 @@ class EarningsService {
     await _firestore.runTransaction(
       (transaction) async {
         final ownerSnapshot =
-            await transaction.get(
-          ownerRef,
-        );
+            await transaction.get(ownerRef);
 
         final ownerData =
             ownerSnapshot.data() ?? {};
 
         final currentBalance =
-            _toDouble(
-          ownerData['balance'],
-        );
+            _toDouble(ownerData['balance']);
 
         final currentTotalEarned =
             _toDouble(
-          ownerData['totalEarned'],
-        );
+              ownerData['totalEarned'],
+            );
 
         transaction.set(
           ownerRef,
@@ -644,13 +600,10 @@ class EarningsService {
             'type': cleanType,
             'description':
                 description?.trim() ?? '',
-            'referenceId':
-                referenceId,
+            'referenceId': referenceId,
             'status': 'completed',
-            'transactionType':
-                'owner_revenue',
-            'ownerTransaction':
-                true,
+            'transactionType': 'owner_revenue',
+            'ownerTransaction': true,
             'createdAt':
                 FieldValue.serverTimestamp(),
           },
@@ -715,18 +668,14 @@ class EarningsService {
 
     final userRef = _users.doc(user.uid);
 
-    final withdrawRef =
-        _withdrawRequests.doc();
+    final withdrawRef = _withdrawRequests.doc();
 
-    final transactionRef =
-        _transactions.doc();
+    final transactionRef = _transactions.doc();
 
     await _firestore.runTransaction(
       (transaction) async {
         final userSnapshot =
-            await transaction.get(
-          userRef,
-        );
+            await transaction.get(userRef);
 
         if (!userSnapshot.exists) {
           throw Exception(
@@ -748,14 +697,13 @@ class EarningsService {
 
         final totalWithdrawn =
             _toDouble(
-          userData['totalWithdrawn'],
-        );
+              userData['totalWithdrawn'],
+            );
 
         transaction.set(
           userRef,
           {
-            'balance':
-                balance - amount,
+            'balance': balance - amount,
             'totalWithdrawn':
                 totalWithdrawn + amount,
             'updatedAt':
@@ -785,13 +733,10 @@ class EarningsService {
             'userId': user.uid,
             'amount': amount,
             'type': 'withdraw',
-            'description':
-                'Withdrawal request',
-            'referenceId':
-                withdrawRef.id,
+            'description': 'Withdrawal request',
+            'referenceId': withdrawRef.id,
             'status': 'pending',
-            'transactionType':
-                'withdrawal',
+            'transactionType': 'withdrawal',
             'createdAt':
                 FieldValue.serverTimestamp(),
           },
@@ -810,9 +755,7 @@ class EarningsService {
 
     if (user == null) {
       return Stream.error(
-        Exception(
-          'প্রথমে লগইন করুন।',
-        ),
+        Exception('প্রথমে লগইন করুন।'),
       );
     }
 
@@ -842,9 +785,7 @@ class EarningsService {
       );
     }
 
-    return _withdrawRequests
-        .doc(requestId)
-        .get();
+    return _withdrawRequests.doc(requestId).get();
   }
 
   // ============================================================
@@ -876,9 +817,7 @@ class EarningsService {
     await _firestore.runTransaction(
       (transaction) async {
         final withdrawSnapshot =
-            await transaction.get(
-          withdrawRef,
-        );
+            await transaction.get(withdrawRef);
 
         if (!withdrawSnapshot.exists) {
           throw Exception(
@@ -889,17 +828,14 @@ class EarningsService {
         final withdrawData =
             withdrawSnapshot.data() ?? {};
 
-        if (withdrawData['userId'] !=
-            user.uid) {
+        if (withdrawData['userId'] != user.uid) {
           throw Exception(
             'এই request বাতিল করার অনুমতি নেই।',
           );
         }
 
         final status =
-            withdrawData['status']
-                    ?.toString() ??
-                '';
+            withdrawData['status']?.toString() ?? '';
 
         if (status != 'pending') {
           throw Exception(
@@ -908,14 +844,10 @@ class EarningsService {
         }
 
         final amount =
-            _toDouble(
-          withdrawData['amount'],
-        );
+            _toDouble(withdrawData['amount']);
 
         final userSnapshot =
-            await transaction.get(
-          userRef,
-        );
+            await transaction.get(userRef);
 
         if (!userSnapshot.exists) {
           throw Exception(
@@ -927,14 +859,12 @@ class EarningsService {
             userSnapshot.data() ?? {};
 
         final currentBalance =
-            _toDouble(
-          userData['balance'],
-        );
+            _toDouble(userData['balance']);
 
         final currentTotalWithdrawn =
             _toDouble(
-          userData['totalWithdrawn'],
-        );
+              userData['totalWithdrawn'],
+            );
 
         final newTotalWithdrawn =
             currentTotalWithdrawn >= amount
@@ -957,8 +887,7 @@ class EarningsService {
         transaction.update(
           withdrawRef,
           {
-            'status':
-                'cancelled',
+            'status': 'cancelled',
             'cancelledAt':
                 FieldValue.serverTimestamp(),
             'updatedAt':
@@ -983,8 +912,7 @@ class EarningsService {
           transaction.update(
             transactionQuery.docs.first.reference,
             {
-              'status':
-                  'cancelled',
+              'status': 'cancelled',
               'updatedAt':
                   FieldValue.serverTimestamp(),
             },
