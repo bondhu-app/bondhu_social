@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/earnings_service.dart';
-import 'withdraw_screen.dart';
 
 class EarningsScreen extends StatefulWidget {
   EarningsScreen({super.key});
@@ -50,103 +49,753 @@ class _EarningsScreenState extends State<EarningsScreen> {
     return '৳${amount.toStringAsFixed(2)}';
   }
 
-  String _date(dynamic value) {
-    if (value is Timestamp) {
-      final date = value.toDate();
-
-      return '${date.day.toString().padLeft(2, '0')}/'
-          '${date.month.toString().padLeft(2, '0')}/'
-          '${date.year} '
-          '${date.hour.toString().padLeft(2, '0')}:'
-          '${date.minute.toString().padLeft(2, '0')}';
-    }
-
-    return 'সময় পাওয়া যায়নি';
-  }
-
-  String _statusText(String status) {
-    switch (status) {
-      case 'completed':
-        return 'সম্পন্ন';
-
-      case 'pending':
-        return 'অপেক্ষমাণ';
-
-      case 'cancelled':
-        return 'বাতিল';
-
-      case 'approved':
-        return 'অনুমোদিত';
-
-      case 'rejected':
-        return 'প্রত্যাখ্যাত';
-
-      default:
-        return status;
-    }
-  }
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'completed':
-      case 'approved':
-        return Colors.green;
-
-      case 'pending':
-        return Colors.orange;
-
-      case 'cancelled':
-      case 'rejected':
-        return Colors.red;
-
-      default:
-        return Colors.grey;
-    }
-  }
-
-  Future<void> _openWithdraw() async {
-    await Navigator.push(
+  void _openWithdraw() {
+    Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => WithdrawScreen(),
+        builder: (_) => WithdrawScreen(
+          earningsService: _earningsService,
+        ),
       ),
     );
   }
 
-  Future<void> _cancelWithdraw(
-    String requestId,
-  ) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Withdraw বাতিল করবেন?'),
-          content: const Text(
-            'এই pending withdraw request বাতিল করলে '
-            'টাকাটি আবার আপনার Wallet-এ যোগ হবে।',
+  @override
+  Widget build(BuildContext context) {
+    final user = _earningsService.currentUser;
+
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Earnings & Wallet'),
+        ),
+        body: const Center(
+          child: Text(
+            'প্রথমে লগইন করুন।',
+            style: TextStyle(fontSize: 16),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context, false);
-              },
-              child: const Text('না'),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Earnings & Wallet'),
+        centerTitle: true,
+      ),
+      body: StreamBuilder<
+          DocumentSnapshot<Map<String, dynamic>>>(
+        stream: _earningsService.walletStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                snapshot.error
+                        .toString()
+                        .replaceFirst('Exception: ', ''),
+              ),
+            );
+          }
+
+          final data = snapshot.data?.data() ?? {};
+
+          final balance = data['balance'] ?? 0;
+          final totalEarned =
+              data['totalEarned'] ?? 0;
+          final totalWithdrawn =
+              data['totalWithdrawn'] ?? 0;
+
+          return RefreshIndicator(
+            onRefresh: _initializeWallet,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _walletCard(
+                  balance: balance,
+                  totalEarned: totalEarned,
+                  totalWithdrawn: totalWithdrawn,
+                ),
+
+                const SizedBox(height: 20),
+
+                SizedBox(
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: _openWithdraw,
+                    icon: const Icon(
+                      Icons.account_balance_wallet,
+                    ),
+                    label: const Text(
+                      'Withdraw',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 28),
+
+                const Text(
+                  'Transaction History',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                _transactionList(),
+              ],
             ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, true);
-              },
-              child: const Text('হ্যাঁ, বাতিল'),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _walletCard({
+    required dynamic balance,
+    required dynamic totalEarned,
+    required dynamic totalWithdrawn,
+  }) {
+    return Card(
+      elevation: 3,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            const Icon(
+              Icons.account_balance_wallet,
+              size: 55,
+            ),
+
+            const SizedBox(height: 10),
+
+            const Text(
+              'Available Balance',
+              style: TextStyle(
+                fontSize: 16,
+              ),
+            ),
+
+            const SizedBox(height: 5),
+
+            Text(
+              _money(balance),
+              style: const TextStyle(
+                fontSize: 34,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const Divider(height: 30),
+
+            Row(
+              children: [
+                Expanded(
+                  child: _walletItem(
+                    'Total Earned',
+                    _money(totalEarned),
+                    Icons.trending_up,
+                  ),
+                ),
+                Expanded(
+                  child: _walletItem(
+                    'Withdrawn',
+                    _money(totalWithdrawn),
+                    Icons.payments,
+                  ),
+                ),
+              ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _walletItem(
+    String title,
+    String value,
+    IconData icon,
+  ) {
+    return Column(
+      children: [
+        Icon(icon, size: 28),
+        const SizedBox(height: 6),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _transactionList() {
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: _earningsService.myTransactionsStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(30),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              snapshot.error
+                      .toString()
+                      .replaceFirst('Exception: ', ''),
+            ),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(25),
+              child: Center(
+                child: Text(
+                  'এখনও কোনো transaction নেই।',
+                ),
+              ),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          itemCount: docs.length,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemBuilder: (context, index) {
+            final data = docs[index].data();
+
+            final type =
+                data['type']?.toString() ?? '';
+
+            final description =
+                data['description']?.toString() ??
+                    type;
+
+            final amount = data['amount'] ?? 0;
+
+            final transactionType =
+                data['transactionType']
+                        ?.toString() ??
+                    '';
+
+            final isEarning =
+                transactionType == 'earning';
+
+            return Card(
+              child: ListTile(
+                leading: CircleAvatar(
+                  child: Icon(
+                    isEarning
+                        ? Icons.add
+                        : Icons.remove,
+                  ),
+                ),
+                title: Text(
+                  description.isEmpty
+                      ? type
+                      : description,
+                ),
+                subtitle: Text(
+                  'Status: ${data['status'] ?? 'unknown'}',
+                ),
+                trailing: Text(
+                  '${isEarning ? '+' : '-'}${_money(amount)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: isEarning
+                        ? Colors.green
+                        : Colors.red,
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
+  }
+}
 
-    if (confirm != true) return;
+// ============================================================
+// WITHDRAW SCREEN
+// ============================================================
+
+class WithdrawScreen extends StatefulWidget {
+  final EarningsService earningsService;
+
+  WithdrawScreen({
+    super.key,
+    required this.earningsService,
+  });
+
+  @override
+  State<WithdrawScreen> createState() =>
+      _WithdrawScreenState();
+}
+
+class _WithdrawScreenState extends State<WithdrawScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  final TextEditingController _amountController =
+      TextEditingController();
+
+  final TextEditingController _accountController =
+      TextEditingController();
+
+  String _method = 'bKash';
+
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _accountController.dispose();
+    super.dispose();
+  }
+
+  double _balanceFromData(
+    Map<String, dynamic> data,
+  ) {
+    final value = data['balance'];
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    if (value is String) {
+      return double.tryParse(value) ?? 0;
+    }
+
+    return 0;
+  }
+
+  Future<void> _withdraw() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    final amount =
+        double.tryParse(_amountController.text.trim());
+
+    if (amount == null) {
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+    });
 
     try {
-      await _earningsService.cancelWithdrawRequest(
+      await widget.earningsService
+          .createWithdrawRequest(
+        amount: amount,
+        method: _method,
+        account: _accountController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Withdraw request সফলভাবে পাঠানো হয়েছে।',
+          ),
+        ),
+      );
+
+      _amountController.clear();
+      _accountController.clear();
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Withdraw'),
+        centerTitle: true,
+      ),
+      body: StreamBuilder<
+          DocumentSnapshot<Map<String, dynamic>>>(
+        stream: widget.earningsService.walletStream(),
+        builder: (context, snapshot) {
+          final data = snapshot.data?.data() ?? {};
+
+          final balance =
+              _balanceFromData(data);
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      const Icon(
+                        Icons.account_balance_wallet,
+                        size: 45,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Available Balance',
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        '৳${balance.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 30,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Withdraw Amount',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        TextFormField(
+                          controller:
+                              _amountController,
+                          keyboardType:
+                              const TextInputType
+                                  .numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration:
+                              const InputDecoration(
+                            labelText: 'Amount',
+                            hintText: 'Minimum ৳100',
+                            prefixText: '৳ ',
+                            border:
+                                OutlineInputBorder(),
+                          ),
+                          validator: (value) {
+                            if (value == null ||
+                                value.trim().isEmpty) {
+                              return 'Amount দিন';
+                            }
+
+                            final amount =
+                                double.tryParse(
+                              value.trim(),
+                            );
+
+                            if (amount == null) {
+                              return 'সঠিক amount দিন';
+                            }
+
+                            if (amount < 100) {
+                              return 'Minimum withdraw ৳100';
+                            }
+
+                            if (amount > balance) {
+                              return 'আপনার balance পর্যাপ্ত নয়';
+                            }
+
+                            return null;
+                          },
+                        ),
+
+                        const SizedBox(height: 18),
+
+                        const Text(
+                          'Payment Method',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        DropdownButtonFormField<String>(
+                          value: _method,
+                          decoration:
+                              const InputDecoration(
+                            border:
+                                OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'bKash',
+                              child: Text('bKash'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'Nagad',
+                              child: Text('Nagad'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'Rocket',
+                              child: Text('Rocket'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'Bank',
+                              child: Text('Bank'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value == null) return;
+
+                            setState(() {
+                              _method = value;
+                            });
+                          },
+                        ),
+
+                        const SizedBox(height: 18),
+
+                        TextFormField(
+                          controller:
+                              _accountController,
+                          keyboardType:
+                              TextInputType.phone,
+                          decoration:
+                              const InputDecoration(
+                            labelText:
+                                'Payment Account',
+                            hintText:
+                                'bKash/Nagad/Bank number',
+                            border:
+                                OutlineInputBorder(),
+                          ),
+                          validator: (value) {
+                            if (value == null ||
+                                value.trim().isEmpty) {
+                              return 'Payment account দিন';
+                            }
+
+                            if (value.trim().length <
+                                5) {
+                              return 'সঠিক account দিন';
+                            }
+
+                            return null;
+                          },
+                        ),
+
+                        const SizedBox(height: 22),
+
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: ElevatedButton(
+                            onPressed:
+                                _loading
+                                    ? null
+                                    : _withdraw,
+                            child: _loading
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child:
+                                        CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Submit Withdraw Request',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight:
+                                          FontWeight.bold,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 25),
+
+              const Text(
+                'Withdraw Requests',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              _withdrawRequests(),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _withdrawRequests() {
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: widget.earningsService
+          .myWithdrawRequestsStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Text(
+            snapshot.error
+                    .toString()
+                    .replaceFirst('Exception: ', ''),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Center(
+                child: Text(
+                  'কোনো withdraw request নেই।',
+                ),
+              ),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          itemCount: docs.length,
+          shrinkWrap: true,
+          physics:
+              const NeverScrollableScrollPhysics(),
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final data = doc.data();
+
+            final amount = data['amount'] is num
+                ? (data['amount'] as num).toDouble()
+                : double.tryParse(
+                      '${data['amount']}',
+                    ) ??
+                    0;
+
+            final status =
+                data['status']?.toString() ??
+                    'pending';
+
+            return Card(
+              child: ListTile(
+                leading: const CircleAvatar(
+                  child: Icon(
+                    Icons.payments,
+                  ),
+                ),
+                title: Text(
+                  '৳${amount.toStringAsFixed(2)}',
+                ),
+                subtitle: Text(
+                  '${data['method'] ?? ''} • '
+                  '${data['account'] ?? ''}\n'
+                  'Status: $status',
+                ),
+                isThreeLine: true,
+                trailing: status == 'pending'
+                    ? TextButton(
+                        onPressed: () =>
+                            _cancel(doc.id),
+                        child: const Text(
+                          'Cancel',
+                        ),
+                      )
+                    : null,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _cancel(String requestId) async {
+    try {
+      await widget.earningsService
+          .cancelWithdrawRequest(
         requestId,
       );
 
@@ -155,7 +804,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Withdraw request বাতিল হয়েছে। টাকা Wallet-এ ফেরত এসেছে।',
+            'Withdraw request বাতিল করা হয়েছে।',
           ),
         ),
       );
@@ -170,510 +819,5 @@ class _EarningsScreenState extends State<EarningsScreen> {
         ),
       );
     }
-  }
-
-  Widget _walletCard(
-    String title,
-    String amount,
-    IconData icon,
-  ) {
-    return Expanded(
-      child: Card(
-        elevation: 2,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              CircleAvatar(
-                radius: 25,
-                child: Icon(icon),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                amount,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _transactionItem(
-    Map<String, dynamic> data,
-  ) {
-    final amount = data['amount'];
-    final type =
-        data['type']?.toString() ?? 'transaction';
-
-    final description =
-        data['description']?.toString() ?? '';
-
-    final status =
-        data['status']?.toString() ?? '';
-
-    final isWithdraw =
-        data['transactionType'] == 'withdrawal';
-
-    return Card(
-      margin: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 5,
-      ),
-      child: ListTile(
-        leading: CircleAvatar(
-          child: Icon(
-            isWithdraw
-                ? Icons.arrow_upward
-                : Icons.arrow_downward,
-          ),
-        ),
-        title: Text(
-          description.isNotEmpty
-              ? description
-              : type,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(_date(data['createdAt'])),
-            const SizedBox(height: 3),
-            Text(
-              _statusText(status),
-              style: TextStyle(
-                color: _statusColor(status),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        trailing: Text(
-          '${isWithdraw ? '-' : '+'}${_money(amount)}',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            color: isWithdraw
-                ? Colors.red
-                : Colors.green,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _withdrawItem(
-    DocumentSnapshot<Map<String, dynamic>> document,
-  ) {
-    final data = document.data() ?? {};
-
-    final status =
-        data['status']?.toString() ?? '';
-
-    final amount = data['amount'];
-
-    final method =
-        data['method']?.toString() ?? '';
-
-    final account =
-        data['account']?.toString() ?? '';
-
-    return Card(
-      margin: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 5,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.payments,
-                  size: 28,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _money(amount),
-                    style: const TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _statusColor(status)
-                        .withOpacity(.12),
-                    borderRadius:
-                        BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    _statusText(status),
-                    style: TextStyle(
-                      color: _statusColor(status),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text('Method: $method'),
-            const SizedBox(height: 4),
-            Text('Account: $account'),
-            const SizedBox(height: 4),
-            Text(
-              'সময়: ${_date(data['createdAt'])}',
-            ),
-            if (status == 'pending') ...[
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    _cancelWithdraw(
-                      document.id,
-                    );
-                  },
-                  icon: const Icon(
-                    Icons.cancel_outlined,
-                  ),
-                  label: const Text(
-                    'Withdraw বাতিল করুন',
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Earnings & Wallet',
-        ),
-        actions: [
-          IconButton(
-            onPressed: _initializeWallet,
-            icon: const Icon(
-              Icons.refresh,
-            ),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _initializeWallet,
-        child: ListView(
-          physics:
-              const AlwaysScrollableScrollPhysics(),
-          children: [
-            const SizedBox(height: 10),
-
-            // ==================================================
-            // WALLET
-            // ==================================================
-
-            StreamBuilder<
-                DocumentSnapshot<Map<String, dynamic>>>(
-              stream:
-                  _earningsService.walletStream(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Center(
-                      child: Text(
-                        snapshot.error
-                            .toString()
-                            .replaceFirst(
-                              'Exception: ',
-                              '',
-                            ),
-                      ),
-                    ),
-                  );
-                }
-
-                if (!snapshot.hasData) {
-                  return const Padding(
-                    padding: EdgeInsets.all(30),
-                    child: Center(
-                      child:
-                          CircularProgressIndicator(),
-                    ),
-                  );
-                }
-
-                final data =
-                    snapshot.data!.data() ?? {};
-
-                final balance =
-                    data['balance'] ?? 0;
-
-                final totalEarned =
-                    data['totalEarned'] ?? 0;
-
-                final totalWithdrawn =
-                    data['totalWithdrawn'] ?? 0;
-
-                return Column(
-                  children: [
-                    Card(
-                      margin:
-                          const EdgeInsets.all(12),
-                      elevation: 3,
-                      child: Padding(
-                        padding:
-                            const EdgeInsets.all(22),
-                        child: Column(
-                          children: [
-                            const Icon(
-                              Icons.account_balance_wallet,
-                              size: 50,
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              'Available Balance',
-                              style: TextStyle(
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              _money(balance),
-                              style: const TextStyle(
-                                fontSize: 32,
-                                fontWeight:
-                                    FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 15),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed:
-                                    _openWithdraw,
-                                icon: const Icon(
-                                  Icons
-                                      .account_balance_wallet,
-                                ),
-                                label: const Text(
-                                  'Withdraw',
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        _walletCard(
-                          'Total Earned',
-                          _money(totalEarned),
-                          Icons.trending_up,
-                        ),
-                        _walletCard(
-                          'Withdrawn',
-                          _money(totalWithdrawn),
-                          Icons.payments_outlined,
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              },
-            ),
-
-            const SizedBox(height: 15),
-
-            // ==================================================
-            // TRANSACTIONS
-            // ==================================================
-
-            const Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: 15,
-              ),
-              child: Text(
-                'Transaction History',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            StreamBuilder<
-                QuerySnapshot<Map<String, dynamic>>>(
-              stream: _earningsService
-                  .myTransactionsStream(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Padding(
-                    padding: const EdgeInsets.all(15),
-                    child: Text(
-                      snapshot.error
-                          .toString()
-                          .replaceFirst(
-                            'Exception: ',
-                            '',
-                          ),
-                    ),
-                  );
-                }
-
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Center(
-                      child:
-                          CircularProgressIndicator(),
-                    ),
-                  );
-                }
-
-                final docs =
-                    snapshot.data?.docs ?? [];
-
-                if (docs.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.all(25),
-                    child: Center(
-                      child: Text(
-                        'এখনও কোনো transaction নেই।',
-                      ),
-                    ),
-                  );
-                }
-
-                return Column(
-                  children: docs
-                      .map(
-                        (doc) =>
-                            _transactionItem(
-                          doc.data(),
-                        ),
-                      )
-                      .toList(),
-                );
-              },
-            ),
-
-            const SizedBox(height: 20),
-
-            // ==================================================
-            // WITHDRAW REQUESTS
-            // ==================================================
-
-            const Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: 15,
-              ),
-              child: Text(
-                'Withdraw Requests',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            StreamBuilder<
-                QuerySnapshot<Map<String, dynamic>>>(
-              stream: _earningsService
-                  .myWithdrawRequestsStream(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Padding(
-                    padding: const EdgeInsets.all(15),
-                    child: Text(
-                      snapshot.error
-                          .toString()
-                          .replaceFirst(
-                            'Exception: ',
-                            '',
-                          ),
-                    ),
-                  );
-                }
-
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Center(
-                      child:
-                          CircularProgressIndicator(),
-                    ),
-                  );
-                }
-
-                final docs =
-                    snapshot.data?.docs ?? [];
-
-                if (docs.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.all(25),
-                    child: Center(
-                      child: Text(
-                        'কোনো Withdraw Request নেই।',
-                      ),
-                    ),
-                  );
-                }
-
-                return Column(
-                  children: docs
-                      .map(
-                        (doc) =>
-                            _withdrawItem(doc),
-                      )
-                      .toList(),
-                );
-              },
-            ),
-
-            const SizedBox(height: 30),
-          ],
-        ),
-      ),
-    );
   }
 }
