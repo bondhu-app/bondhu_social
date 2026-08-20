@@ -4,12 +4,7 @@ import 'package:flutter/material.dart';
 class AdminWithdrawScreen extends StatelessWidget {
   const AdminWithdrawScreen({super.key});
 
-  FirebaseFirestore get _firestore =>
-      FirebaseFirestore.instance;
-
-  // ============================================================
-  // MONEY
-  // ============================================================
+  final String _collectionName = 'withdraw_requests';
 
   double _toDouble(dynamic value) {
     if (value is num) {
@@ -27,14 +22,10 @@ class AdminWithdrawScreen extends StatelessWidget {
     return '৳${_toDouble(value).toStringAsFixed(2)}';
   }
 
-  // ============================================================
-  // WITHDRAW REQUESTS
-  // ============================================================
-
   Stream<QuerySnapshot<Map<String, dynamic>>>
-      _withdrawStream() {
-    return _firestore
-        .collection('withdraw_requests')
+      _requestsStream() {
+    return FirebaseFirestore.instance
+        .collection(_collectionName)
         .orderBy(
           'createdAt',
           descending: true,
@@ -42,657 +33,101 @@ class AdminWithdrawScreen extends StatelessWidget {
         .snapshots();
   }
 
-  // ============================================================
-  // BUILD
-  // ============================================================
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
-
-      appBar: AppBar(
-        title: const Text(
-          'Manage Withdrawals',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-      ),
-
-      body: StreamBuilder<
-          QuerySnapshot<Map<String, dynamic>>>(
-        stream: _withdrawStream(),
-        builder: (
-          context,
-          snapshot,
-        ) {
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding:
-                    const EdgeInsets.all(20),
-                child: Text(
-                  snapshot.error
-                      .toString()
-                      .replaceFirst(
-                        'Exception: ',
-                        '',
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          }
-
-          final requests =
-              snapshot.data?.docs ?? [];
-
-          if (requests.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment:
-                    MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons
-                        .check_circle_outline,
-                    size: 70,
-                  ),
-                  SizedBox(height: 15),
-                  Text(
-                    'কোনো Withdraw Request নেই',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding:
-                const EdgeInsets.all(16),
-            itemCount: requests.length,
-            itemBuilder: (
-              context,
-              index,
-            ) {
-              final document =
-                  requests[index];
-
-              final data =
-                  document.data();
-
-              return _withdrawCard(
-                context,
-                document.id,
-                data,
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  // ============================================================
-  // WITHDRAW CARD
-  // ============================================================
-
-  Widget _withdrawCard(
-    BuildContext context,
-    String requestId,
-    Map<String, dynamic> data,
-  ) {
+  Future<void> _updateRequest({
+    required BuildContext context,
+    required String requestId,
+    required Map<String, dynamic> data,
+    required String newStatus,
+  }) async {
     final userId =
-        data['userId']?.toString() ??
-            '';
-
-    final userName =
-        data['userName']?.toString() ??
-            'Unknown User';
+        data['userId']?.toString() ?? '';
 
     final amount =
         _toDouble(data['amount']);
 
-    final method =
-        data['method']?.toString() ??
-            'Unknown';
-
-    final account =
-        data['account']?.toString() ??
-            '';
-
-    final status =
-        data['status']?.toString() ??
-            'pending';
-
-    final createdAt =
-        data['createdAt'];
-
-    return Card(
-      margin:
-          const EdgeInsets.only(
-        bottom: 12,
-      ),
-      elevation: 2,
-      child: Padding(
-        padding:
-            const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-
-            // ==================================================
-            // USER
-            // ==================================================
-
-            Row(
-              children: [
-
-                const CircleAvatar(
-                  child: Icon(
-                    Icons.person,
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-
-                      Text(
-                        userName,
-                        style:
-                            const TextStyle(
-                          fontSize: 17,
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height: 3),
-
-                      Text(
-                        'User ID: $userId',
-                        maxLines: 1,
-                        overflow:
-                            TextOverflow.ellipsis,
-                        style:
-                            TextStyle(
-                          fontSize: 11,
-                          color: Colors
-                              .grey
-                              .shade700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                _statusBadge(status),
-              ],
-            ),
-
-            const Divider(
-              height: 25,
-            ),
-
-            // ==================================================
-            // AMOUNT
-            // ==================================================
-
-            Row(
-              children: [
-
-                const Icon(
-                  Icons.payments,
-                  size: 22,
-                ),
-
-                const SizedBox(width: 8),
-
-                const Text(
-                  'Amount:',
-                  style:
-                      TextStyle(
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(width: 8),
-
-                Text(
-                  _money(amount),
-                  style:
-                      const TextStyle(
-                    fontSize: 20,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // ==================================================
-            // METHOD
-            // ==================================================
-
-            Row(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-
-                const Icon(
-                  Icons.account_balance,
-                  size: 20,
-                ),
-
-                const SizedBox(width: 8),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-
-                      const Text(
-                        'Payment Method',
-                        style:
-                            TextStyle(
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height: 3),
-
-                      Text(
-                        method,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // ==================================================
-            // ACCOUNT
-            // ==================================================
-
-            if (account.isNotEmpty)
-              Row(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-
-                  const Icon(
-                    Icons.phone_android,
-                    size: 20,
-                  ),
-
-                  const SizedBox(width: 8),
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-
-                        const Text(
-                          'Account',
-                          style:
-                              TextStyle(
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
-                        ),
-
-                        const SizedBox(height: 3),
-
-                        Text(
-                          account,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-
-            const SizedBox(height: 12),
-
-            // ==================================================
-            // DATE
-            // ==================================================
-
-            if (createdAt
-                is Timestamp)
-              Row(
-                children: [
-
-                  const Icon(
-                    Icons.access_time,
-                    size: 18,
-                  ),
-
-                  const SizedBox(width: 8),
-
-                  Text(
-                    _formatDate(
-                      createdAt,
-                    ),
-                    style:
-                        TextStyle(
-                      color: Colors
-                          .grey
-                          .shade700,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-
-            const SizedBox(height: 16),
-
-            // ==================================================
-            // ACTION BUTTONS
-            // ==================================================
-
-            if (status == 'pending')
-              Row(
-                children: [
-
-                  Expanded(
-                    child:
-                        OutlinedButton.icon(
-                      onPressed: () {
-                        _showRejectDialog(
-                          context,
-                          requestId,
-                        );
-                      },
-                      icon:
-                          const Icon(
-                        Icons.close,
-                      ),
-                      label:
-                          const Text(
-                        'Reject',
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 10),
-
-                  Expanded(
-                    child:
-                        FilledButton.icon(
-                      onPressed: () {
-                        _showApproveDialog(
-                          context,
-                          requestId,
-                          amount,
-                        );
-                      },
-                      icon:
-                          const Icon(
-                        Icons.check,
-                      ),
-                      label:
-                          const Text(
-                        'Approve',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // STATUS BADGE
-  // ============================================================
-
-  Widget _statusBadge(
-    String status,
-  ) {
-    String text;
-
-    if (status == 'approved') {
-      text = 'Approved';
-    } else if (status == 'rejected') {
-      text = 'Rejected';
-    } else {
-      text = 'Pending';
+    if (userId.isEmpty) {
+      _showMessage(
+        context,
+        'User ID পাওয়া যায়নি।',
+      );
+      return;
     }
 
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 5,
-      ),
-      decoration:
-          BoxDecoration(
-        borderRadius:
-            BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.grey,
-        ),
-      ),
-      child: Text(
-        text,
-        style:
-            const TextStyle(
-          fontSize: 12,
-          fontWeight:
-              FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // DATE
-  // ============================================================
-
-  String _formatDate(
-    Timestamp timestamp,
-  ) {
-    final date =
-        timestamp.toDate();
-
-    String twoDigits(int value) {
-      return value
-          .toString()
-          .padLeft(2, '0');
+    if (amount <= 0) {
+      _showMessage(
+        context,
+        'Withdraw amount সঠিক নয়।',
+      );
+      return;
     }
 
-    return '${date.year}-'
-        '${twoDigits(date.month)}-'
-        '${twoDigits(date.day)} '
-        '${twoDigits(date.hour)}:'
-        '${twoDigits(date.minute)}';
-  }
+    if (newStatus == 'rejected') {
+      try {
+        await FirebaseFirestore.instance
+            .collection(_collectionName)
+            .doc(requestId)
+            .update({
+          'status': 'rejected',
+          'updatedAt':
+              FieldValue.serverTimestamp(),
+        });
 
-  // ============================================================
-  // APPROVE DIALOG
-  // ============================================================
+        if (context.mounted) {
+          _showMessage(
+            context,
+            'Withdraw request Reject করা হয়েছে।',
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          _showMessage(
+            context,
+            'Reject করা যায়নি: $e',
+          );
+        }
+      }
 
-  void _showApproveDialog(
-    BuildContext context,
-    String requestId,
-    double amount,
-  ) {
-    showDialog<void>(
-      context: context,
-      builder: (
-        dialogContext,
-      ) {
-        return AlertDialog(
-          title: const Text(
-            'Withdraw Approve',
-          ),
-          content: Text(
-            'আপনি কি ${_money(amount)} '
-            'Withdraw Request Approve করতে চান?',
-          ),
-          actions: [
+      return;
+    }
 
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
-              },
-              child:
-                  const Text('Cancel'),
-            ),
+    if (newStatus != 'approved') {
+      return;
+    }
 
-            FilledButton(
-              onPressed: () async {
-                Navigator.pop(
-                  dialogContext,
-                );
-
-                await _approveWithdraw(
-                  context,
-                  requestId,
-                  amount,
-                );
-              },
-              child:
-                  const Text('Approve'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // ============================================================
-  // REJECT DIALOG
-  // ============================================================
-
-  void _showRejectDialog(
-    BuildContext context,
-    String requestId,
-  ) {
-    final controller =
-        TextEditingController();
-
-    showDialog<void>(
-      context: context,
-      builder: (
-        dialogContext,
-      ) {
-        return AlertDialog(
-          title: const Text(
-            'Withdraw Reject',
-          ),
-          content: TextField(
-            controller:
-                controller,
-            maxLines: 3,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  'Reject Reason',
-              hintText:
-                  'কারণ লিখুন',
-              border:
-                  OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
-              },
-              child:
-                  const Text('Cancel'),
-            ),
-
-            FilledButton(
-              onPressed: () async {
-                final reason =
-                    controller.text
-                        .trim();
-
-                Navigator.pop(
-                  dialogContext,
-                );
-
-                await _rejectWithdraw(
-                  context,
-                  requestId,
-                  reason,
-                );
-              },
-              child:
-                  const Text('Reject'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // ============================================================
-  // APPROVE WITHDRAW
-  // ============================================================
-
-  Future<void> _approveWithdraw(
-    BuildContext context,
-    String requestId,
-    double amount,
-  ) async {
     try {
-      final requestRef =
-          _firestore
-              .collection(
-                'withdraw_requests',
-              )
-              .doc(requestId);
-
-      final walletRef =
-          _firestore
-              .collection('settings')
-              .doc('owner_wallet');
-
-      await _firestore
+      await FirebaseFirestore.instance
           .runTransaction(
         (transaction) async {
+          final requestRef =
+              FirebaseFirestore.instance
+                  .collection(
+                    _collectionName,
+                  )
+                  .doc(requestId);
+
+          final userRef =
+              FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(userId);
+
+          final ownerWalletRef =
+              FirebaseFirestore.instance
+                  .collection('settings')
+                  .doc('owner_wallet');
+
           final requestSnapshot =
               await transaction.get(
             requestRef,
+          );
+
+          final userSnapshot =
+              await transaction.get(
+            userRef,
+          );
+
+          final ownerSnapshot =
+              await transaction.get(
+            ownerWalletRef,
           );
 
           if (!requestSnapshot.exists) {
@@ -713,158 +148,697 @@ class AdminWithdrawScreen extends StatelessWidget {
           if (currentStatus !=
               'pending') {
             throw Exception(
-              'এই request ইতিমধ্যে processed হয়েছে।',
+              'এই request ইতিমধ্যে process করা হয়েছে।',
             );
           }
 
-          final walletSnapshot =
-              await transaction.get(
-            walletRef,
-          );
+          if (!userSnapshot.exists) {
+            throw Exception(
+              'User পাওয়া যায়নি।',
+            );
+          }
 
-          final walletData =
-              walletSnapshot.data() ??
+          final userData =
+              userSnapshot.data() ??
                   {};
 
-          final balance =
+          final currentWallet =
               _toDouble(
-            walletData['balance'],
+            userData['wallet'],
+          );
+
+          if (currentWallet <
+              amount) {
+            throw Exception(
+              'User Wallet-এ পর্যাপ্ত টাকা নেই।',
+            );
+          }
+
+          final ownerData =
+              ownerSnapshot.data() ??
+                  {};
+
+          final ownerBalance =
+              _toDouble(
+            ownerData['balance'],
           );
 
           final totalPaid =
               _toDouble(
-            walletData[
+            ownerData[
                 'totalPaidToUsers'],
           );
 
-          if (balance < amount) {
-            throw Exception(
-              'Owner Wallet-এ পর্যাপ্ত balance নেই।',
-            );
-          }
-
           transaction.update(
-            requestRef,
+            userRef,
             {
-              'status':
-                  'approved',
-              'approvedAt':
-                  FieldValue
-                      .serverTimestamp(),
+              'wallet':
+                  currentWallet - amount,
+              'updatedAt':
+                  FieldValue.serverTimestamp(),
             },
           );
 
           transaction.set(
-            walletRef,
+            ownerWalletRef,
             {
               'balance':
-                  balance - amount,
+                  ownerBalance - amount,
               'totalPaidToUsers':
                   totalPaid + amount,
               'updatedAt':
-                  FieldValue
-                      .serverTimestamp(),
+                  FieldValue.serverTimestamp(),
             },
             SetOptions(
               merge: true,
             ),
           );
+
+          transaction.update(
+            requestRef,
+            {
+              'status': 'approved',
+              'approvedAt':
+                  FieldValue.serverTimestamp(),
+              'updatedAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
         },
       );
 
-      if (!context.mounted) {
-        return;
+      if (context.mounted) {
+        _showMessage(
+          context,
+          'Withdraw request Approve করা হয়েছে।',
+        );
       }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Withdraw সফলভাবে Approve হয়েছে।',
-          ),
-        ),
-      );
     } catch (e) {
-      if (!context.mounted) {
-        return;
+      if (context.mounted) {
+        _showMessage(
+          context,
+          'Approve করা যায়নি: $e',
+        );
       }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString().replaceFirst(
-              'Exception: ',
-              '',
-            ),
-          ),
-        ),
-      );
     }
   }
 
-  // ============================================================
-  // REJECT WITHDRAW
-  // ============================================================
+  Future<void> _confirmAction({
+    required BuildContext context,
+    required String requestId,
+    required Map<String, dynamic> data,
+    required bool approve,
+  }) async {
+    final amount =
+        _toDouble(data['amount']);
 
-  Future<void> _rejectWithdraw(
+    final title = approve
+        ? 'Withdraw Approve করবেন?'
+        : 'Withdraw Reject করবেন?';
+
+    final message = approve
+        ? 'আপনি কি ${_money(amount)} Withdraw request Approve করতে চান?'
+        : 'আপনি কি ${_money(amount)} Withdraw request Reject করতে চান?';
+
+    final result =
+        await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child: const Text(
+                'না',
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              child: Text(
+                approve
+                    ? 'Approve'
+                    : 'Reject',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != true) {
+      return;
+    }
+
+    await _updateRequest(
+      context: context,
+      requestId: requestId,
+      data: data,
+      newStatus:
+          approve ? 'approved' : 'rejected',
+    );
+  }
+
+  void _showMessage(
     BuildContext context,
-    String requestId,
-    String reason,
-  ) async {
-    try {
-      final requestRef =
-          _firestore
-              .collection(
-                'withdraw_requests',
-              )
-              .doc(requestId);
+    String message,
+  ) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  }
 
-      await requestRef.update(
-        {
-          'status': 'rejected',
-          'rejectReason':
-              reason.isEmpty
-                  ? 'Admin দ্বারা Reject করা হয়েছে।'
-                  : reason,
-          'rejectedAt':
-              FieldValue
-                  .serverTimestamp(),
-        },
-      );
-
-      if (!context.mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Withdraw Request Reject হয়েছে।',
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor:
+          const Color(0xFFF0F2F5),
+      appBar: AppBar(
+        title: const Text(
+          'Manage Withdrawals',
+          style: TextStyle(
+            fontWeight:
+                FontWeight.bold,
           ),
         ),
-      );
-    } catch (e) {
-      if (!context.mounted) {
-        return;
-      }
+        centerTitle: true,
+      ),
+      body: StreamBuilder<
+          QuerySnapshot<
+              Map<String, dynamic>>>(
+        stream: _requestsStream(),
+        builder: (
+          context,
+          snapshot,
+        ) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+              child:
+                  CircularProgressIndicator(),
+            );
+          }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString().replaceFirst(
-              'Exception: ',
-              '',
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding:
+                    const EdgeInsets.all(
+                  20,
+                ),
+                child: Text(
+                  'Withdraw data load error:\n${snapshot.error}',
+                  textAlign:
+                      TextAlign.center,
+                ),
+              ),
+            );
+          }
+
+          final requests =
+              snapshot.data?.docs ?? [];
+
+          if (requests.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons
+                        .account_balance_wallet_outlined,
+                    size: 70,
+                  ),
+                  SizedBox(
+                    height: 15,
+                  ),
+                  Text(
+                    'কোনো Withdraw Request নেই।',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return ListView(
+            padding:
+                const EdgeInsets.all(16),
+            children: [
+              // =================================================
+              // HEADER
+              // =================================================
+
+              Card(
+                elevation: 3,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.all(
+                    20,
+                  ),
+                  child: Row(
+                    children: [
+                      const CircleAvatar(
+                        radius: 30,
+                        child: Icon(
+                          Icons.payments,
+                          size: 32,
+                        ),
+                      ),
+                      const SizedBox(
+                        width: 15,
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment
+                                  .start,
+                          children: [
+                            const Text(
+                              'Withdraw Management',
+                              style:
+                                  TextStyle(
+                                fontSize: 22,
+                                fontWeight:
+                                    FontWeight
+                                        .bold,
+                              ),
+                            ),
+                            const SizedBox(
+                              height: 5,
+                            ),
+                            Text(
+                              '${requests.length} টি Withdraw Request',
+                              style: TextStyle(
+                                color: Colors
+                                    .grey
+                                    .shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(
+                height: 15,
+              ),
+
+              // =================================================
+              // REQUEST LIST
+              // =================================================
+
+              ...requests.map(
+                (document) {
+                  return _requestCard(
+                    context,
+                    document,
+                  );
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _requestCard(
+    BuildContext context,
+    DocumentSnapshot<
+        Map<String, dynamic>> document,
+  ) {
+    final data =
+        document.data() ?? {};
+
+    final requestId =
+        document.id;
+
+    final userId =
+        data['userId']?.toString() ??
+            'Unknown';
+
+    final userName =
+        data['userName']?.toString() ??
+            'User';
+
+    final email =
+        data['email']?.toString() ??
+            '';
+
+    final method =
+        data['method']?.toString() ??
+            data['paymentMethod']
+                ?.toString() ??
+            'Payment method নেই';
+
+    final account =
+        data['account']?.toString() ??
+            data['accountNumber']
+                ?.toString() ??
+            data['phone']
+                ?.toString() ??
+            '';
+
+    final status =
+        data['status']?.toString() ??
+            'pending';
+
+    final amount =
+        _toDouble(data['amount']);
+
+    return Card(
+      margin:
+          const EdgeInsets.only(
+        bottom: 12,
+      ),
+      child: Padding(
+        padding:
+            const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            // =================================================
+            // USER
+            // =================================================
+
+            Row(
+              children: [
+                const CircleAvatar(
+                  child: Icon(
+                    Icons.person,
+                  ),
+                ),
+                const SizedBox(
+                  width: 12,
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment
+                            .start,
+                    children: [
+                      Text(
+                        userName,
+                        style:
+                            const TextStyle(
+                          fontSize: 17,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                      if (email
+                          .isNotEmpty)
+                        Text(
+                          email,
+                          maxLines: 1,
+                          overflow:
+                              TextOverflow
+                                  .ellipsis,
+                        ),
+                    ],
+                  ),
+                ),
+                _statusBadge(
+                  status,
+                ),
+              ],
+            ),
+
+            const Divider(
+              height: 25,
+            ),
+
+            // =================================================
+            // AMOUNT
+            // =================================================
+
+            Row(
+              mainAxisAlignment:
+                  MainAxisAlignment
+                      .spaceBetween,
+              children: [
+                const Text(
+                  'Withdraw Amount',
+                  style:
+                      TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  _money(amount),
+                  style:
+                      const TextStyle(
+                    fontSize: 20,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(
+              height: 10,
+            ),
+
+            // =================================================
+            // PAYMENT METHOD
+            // =================================================
+
+            if (method.isNotEmpty)
+              Row(
+                crossAxisAlignment:
+                    CrossAxisAlignment
+                        .start,
+                children: [
+                  const Icon(
+                    Icons
+                        .account_balance_wallet,
+                    size: 20,
+                  ),
+                  const SizedBox(
+                    width: 8,
+                  ),
+                  Expanded(
+                    child: Text(
+                      'Method: $method',
+                    ),
+                  ),
+                ],
+              ),
+
+            if (account.isNotEmpty) ...[
+              const SizedBox(
+                height: 7,
+              ),
+              Row(
+                crossAxisAlignment:
+                    CrossAxisAlignment
+                        .start,
+                children: [
+                  const Icon(
+                    Icons
+                        .phone_android,
+                    size: 20,
+                  ),
+                  const SizedBox(
+                    width: 8,
+                  ),
+                  Expanded(
+                    child: Text(
+                      'Account: $account',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            const SizedBox(
+              height: 7,
+            ),
+
+            Text(
+              'User ID: $userId',
+              style: TextStyle(
+                fontSize: 11,
+                color:
+                    Colors.grey.shade600,
+              ),
+            ),
+
+            const SizedBox(
+              height: 15,
+            ),
+
+            // =================================================
+            // ACTION BUTTONS
+            // =================================================
+
+            if (status == 'pending')
+              Row(
+                children: [
+                  Expanded(
+                    child:
+                        OutlinedButton.icon(
+                      onPressed: () {
+                        _confirmAction(
+                          context:
+                              context,
+                          requestId:
+                              requestId,
+                          data: data,
+                          approve:
+                              false,
+                        );
+                      },
+                      icon:
+                          const Icon(
+                        Icons.close,
+                      ),
+                      label:
+                          const Text(
+                        'Reject',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(
+                    width: 10,
+                  ),
+                  Expanded(
+                    child:
+                        ElevatedButton.icon(
+                      onPressed: () {
+                        _confirmAction(
+                          context:
+                              context,
+                          requestId:
+                              requestId,
+                          data: data,
+                          approve:
+                              true,
+                        );
+                      },
+                      icon:
+                          const Icon(
+                        Icons.check,
+                      ),
+                      label:
+                          const Text(
+                        'Approve',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+            if (status == 'approved')
+              const SizedBox(
+                width: double.infinity,
+                child: Text(
+                  '✓ এই Withdraw Approved হয়েছে।',
+                  style: TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ),
+
+            if (status == 'rejected')
+              const SizedBox(
+                width: double.infinity,
+                child: Text(
+                  '✕ এই Withdraw Rejected হয়েছে।',
+                  style: TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statusBadge(
+    String status,
+  ) {
+    String text;
+    IconData icon;
+
+    if (status == 'approved') {
+      text = 'Approved';
+      icon = Icons.check_circle;
+    } else if (status == 'rejected') {
+      text = 'Rejected';
+      icon = Icons.cancel;
+    } else {
+      text = 'Pending';
+      icon = Icons.pending;
+    }
+
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal: 9,
+        vertical: 6,
+      ),
+      decoration:
+          BoxDecoration(
+        borderRadius:
+            BorderRadius.circular(
+          20,
+        ),
+        border: Border.all(
+          color:
+              Colors.grey,
+        ),
+      ),
+      child: Row(
+        mainAxisSize:
+            MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 15,
+          ),
+          const SizedBox(
+            width: 4,
+          ),
+          Text(
+            text,
+            style:
+                const TextStyle(
+              fontSize: 11,
+              fontWeight:
+                  FontWeight.bold,
             ),
           ),
-        ),
-      );
-    }
+        ],
+      ),
+    );
   }
 }
