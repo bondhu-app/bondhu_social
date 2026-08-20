@@ -34,8 +34,7 @@ class RevenueService {
   // CURRENT USER
   // ============================================================
 
-  User? get currentUser =>
-      _auth.currentUser;
+  User? get currentUser => _auth.currentUser;
 
   // ============================================================
   // CALCULATE ADMIN REVENUE
@@ -64,9 +63,7 @@ class RevenueService {
     }
 
     final adminRevenue =
-        calculateAdminRevenue(
-      totalAmount,
-    );
+        calculateAdminRevenue(totalAmount);
 
     return totalAmount - adminRevenue;
   }
@@ -100,14 +97,10 @@ class RevenueService {
     }
 
     final adminRevenue =
-        calculateAdminRevenue(
-      totalAmount,
-    );
+        calculateAdminRevenue(totalAmount);
 
     final userEarning =
-        calculateUserEarning(
-      totalAmount,
-    );
+        calculateUserEarning(totalAmount);
 
     final userRef = _firestore
         .collection('users')
@@ -119,31 +112,29 @@ class RevenueService {
 
     await _firestore.runTransaction(
       (transaction) async {
-        // ------------------------------------------------------
+        // ======================================================
         // READ USER
-        // ------------------------------------------------------
+        // ======================================================
 
         final userSnapshot =
-            await transaction.get(
-          userRef,
-        );
+            await transaction.get(userRef);
 
         final userData =
             userSnapshot.data() ?? {};
 
-        final currentWallet =
+        final currentUserWallet =
             _toDouble(
           userData['wallet'],
         );
 
-        final currentTotalEarned =
+        final currentUserTotalEarned =
             _toDouble(
           userData['totalEarned'],
         );
 
-        // ------------------------------------------------------
+        // ======================================================
         // READ OWNER WALLET
-        // ------------------------------------------------------
+        // ======================================================
 
         final ownerSnapshot =
             await transaction.get(
@@ -153,43 +144,43 @@ class RevenueService {
         final ownerData =
             ownerSnapshot.data() ?? {};
 
-        final currentBalance =
+        final currentOwnerBalance =
             _toDouble(
           ownerData['balance'],
         );
 
-        final currentTotalEarned =
+        final currentOwnerTotalEarned =
             _toDouble(
           ownerData['totalEarned'],
         );
 
-        // ------------------------------------------------------
+        // ======================================================
         // NEW USER WALLET
-        // ------------------------------------------------------
+        // ======================================================
 
         final newUserWallet =
-            currentWallet +
+            currentUserWallet +
                 userEarning;
 
         final newUserTotalEarned =
-            currentTotalEarned +
+            currentUserTotalEarned +
                 userEarning;
 
-        // ------------------------------------------------------
+        // ======================================================
         // NEW OWNER WALLET
-        // ------------------------------------------------------
+        // ======================================================
 
         final newOwnerBalance =
-            currentBalance +
+            currentOwnerBalance +
                 adminRevenue;
 
         final newOwnerTotalEarned =
-            currentTotalEarned +
+            currentOwnerTotalEarned +
                 adminRevenue;
 
-        // ------------------------------------------------------
+        // ======================================================
         // UPDATE USER
-        // ------------------------------------------------------
+        // ======================================================
 
         transaction.set(
           userRef,
@@ -205,9 +196,9 @@ class RevenueService {
           ),
         );
 
-        // ------------------------------------------------------
+        // ======================================================
         // UPDATE OWNER WALLET
-        // ------------------------------------------------------
+        // ======================================================
 
         transaction.set(
           _ownerWalletRef,
@@ -229,9 +220,9 @@ class RevenueService {
           ),
         );
 
-        // ------------------------------------------------------
+        // ======================================================
         // REVENUE TRANSACTION
-        // ------------------------------------------------------
+        // ======================================================
 
         transaction.set(
           revenueRef,
