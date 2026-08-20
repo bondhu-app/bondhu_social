@@ -1,15 +1,13 @@
 package com.bondhu.social
 
 import android.content.Context
-import android.graphics.Color
 import android.view.LayoutInflater
-import android.view.ViewGroup
-import android.widget.LinearLayout
+import android.view.View
+import android.widget.Button
+import android.widget.ImageView
 import android.widget.TextView
-
 import com.google.android.gms.ads.nativead.NativeAd
 import com.google.android.gms.ads.nativead.NativeAdView
-
 import io.flutter.plugins.googlemobileads.GoogleMobileAdsPlugin
 
 class ListTileNativeAdFactory(
@@ -21,89 +19,104 @@ class ListTileNativeAdFactory(
         customOptions: MutableMap<String, Any>?
     ): NativeAdView {
 
-        val adView = NativeAdView(context)
+        val adView = LayoutInflater
+            .from(context)
+            .inflate(
+                R.layout.native_ad,
+                null
+            ) as NativeAdView
 
-        val container = LinearLayout(context)
+        val headlineView =
+            adView.findViewById<TextView>(
+                R.id.native_ad_headline
+            )
 
-        container.orientation =
-            LinearLayout.VERTICAL
+        val bodyView =
+            adView.findViewById<TextView>(
+                R.id.native_ad_body
+            )
 
-        container.setPadding(
-            20,
-            16,
-            20,
-            16
-        )
+        val callToActionView =
+            adView.findViewById<Button>(
+                R.id.native_ad_call_to_action
+            )
 
-        container.setBackgroundColor(
-            Color.WHITE
-        )
+        val iconView =
+            adView.findViewById<ImageView>(
+                R.id.native_ad_icon
+            )
 
-        // Headline
-        val headlineView = TextView(context)
-
-        headlineView.textSize = 17f
-
-        headlineView.setTextColor(
-            Color.BLACK
-        )
-
-        headlineView.setPadding(
-            8,
-            8,
-            8,
-            8
-        )
+        // ========================================================
+        // HEADLINE
+        // ========================================================
 
         headlineView.text =
-            nativeAd.headline ?: "Sponsored"
+            nativeAd.headline
 
-        container.addView(
-            headlineView,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        // Body
-        val bodyView = TextView(context)
-
-        bodyView.textSize = 14f
-
-        bodyView.setTextColor(
-            Color.DKGRAY
-        )
-
-        bodyView.setPadding(
-            8,
-            4,
-            8,
-            8
-        )
-
-        bodyView.text =
-            nativeAd.body ?: "Sponsored content"
-
-        container.addView(
-            bodyView,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        // Add container
-        adView.addView(container)
-
-        // Register assets
         adView.headlineView =
             headlineView
 
-        adView.bodyView =
-            bodyView
+        // ========================================================
+        // BODY
+        // ========================================================
 
-        // Attach native ad
+        if (nativeAd.body != null) {
+            bodyView.text =
+                nativeAd.body
+
+            bodyView.visibility =
+                View.VISIBLE
+
+            adView.bodyView =
+                bodyView
+        } else {
+            bodyView.visibility =
+                View.GONE
+        }
+
+        // ========================================================
+        // CALL TO ACTION
+        // ========================================================
+
+        if (nativeAd.callToAction != null) {
+            callToActionView.text =
+                nativeAd.callToAction
+
+            callToActionView.visibility =
+                View.VISIBLE
+
+            adView.callToActionView =
+                callToActionView
+        } else {
+            callToActionView.visibility =
+                View.GONE
+        }
+
+        // ========================================================
+        // ICON
+        // ========================================================
+
+        val icon = nativeAd.icon
+
+        if (icon != null) {
+            iconView.setImageDrawable(
+                icon.drawable
+            )
+
+            iconView.visibility =
+                View.VISIBLE
+
+            adView.iconView =
+                iconView
+        } else {
+            iconView.visibility =
+                View.GONE
+        }
+
+        // ========================================================
+        // NATIVE AD
+        // ========================================================
+
         adView.setNativeAd(nativeAd)
 
         return adView
