@@ -1,11 +1,34 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-class AdminEarningsScreen extends StatelessWidget {
+import '../../services/earnings_service.dart';
+
+class AdminEarningsScreen extends StatefulWidget {
   const AdminEarningsScreen({super.key});
 
-  final String _walletCollection = 'settings';
-  final String _walletDocument = 'owner_wallet';
+  @override
+  State<AdminEarningsScreen> createState() =>
+      _AdminEarningsScreenState();
+}
+
+class _AdminEarningsScreenState
+    extends State<AdminEarningsScreen> {
+  final EarningsService _earningsService =
+      EarningsService.instance;
+
+  final FirebaseFirestore _firestore =
+      FirebaseFirestore.instance;
+
+  final TextEditingController _userIdController =
+      TextEditingController();
+
+  final TextEditingController _amountController =
+      TextEditingController();
+
+  final TextEditingController _descriptionController =
+      TextEditingController();
+
+  bool _isProcessing = false;
 
   double _toDouble(dynamic value) {
     if (value is num) {
@@ -13,10 +36,10 @@ class AdminEarningsScreen extends StatelessWidget {
     }
 
     if (value is String) {
-      return double.tryParse(value) ?? 0;
+      return double.tryParse(value) ?? 0.0;
     }
 
-    return 0;
+    return 0.0;
   }
 
   String _money(dynamic value) {
@@ -24,196 +47,143 @@ class AdminEarningsScreen extends StatelessWidget {
   }
 
   Stream<DocumentSnapshot<Map<String, dynamic>>>
-      _walletStream() {
-    return FirebaseFirestore.instance
-        .collection(_walletCollection)
-        .doc(_walletDocument)
+      _ownerWalletStream() {
+    return _firestore
+        .collection('settings')
+        .doc('owner_wallet')
         .snapshots();
   }
 
-  Future<void> _addRevenue(
-    BuildContext context,
-  ) async {
-    final controller = TextEditingController();
+  Stream<QuerySnapshot<Map<String, dynamic>>>
+      _transactionsStream() {
+    return _firestore
+        .collection('transactions')
+        .orderBy(
+          'createdAt',
+          descending: true,
+        )
+        .limit(50)
+        .snapshots();
+  }
 
-    final amount = await showDialog<double>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Revenue যোগ করুন',
-          ),
-          content: TextField(
-            controller: controller,
-            keyboardType:
-                const TextInputType.numberWithOptions(
-              decimal: true,
-            ),
-            decoration: const InputDecoration(
-              labelText: 'টাকার পরিমাণ',
-              hintText: 'যেমন: 100',
-              prefixText: '৳ ',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text(
-                'বাতিল',
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final value =
-                    double.tryParse(
-                  controller.text.trim(),
-                );
+  Stream<QuerySnapshot<Map<String, dynamic>>>
+      _usersStream() {
+    return _firestore
+        .collection('users')
+        .snapshots();
+  }
 
-                if (value == null ||
-                    value <= 0) {
-                  return;
-                }
+  @override
+  void initState() {
+    super.initState();
+    _initializeOwnerWallet();
+  }
 
-                Navigator.pop(
-                  context,
-                  value,
-                );
-              },
-              child: const Text(
-                'যোগ করুন',
-              ),
-            ),
-          ],
-        );
-      },
-    );
+  Future<void> _initializeOwnerWallet() async {
+    try {
+      await _earningsService
+          .createOwnerWalletIfNeeded();
+    } catch (_) {}
+  }
 
-    controller.dispose();
+  @override
+  void dispose() {
+    _userIdController.dispose();
+    _amountController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
 
-    if (amount == null || amount <= 0) {
+  Future<void> _addUserReward() async {
+    FocusScope.of(context).unfocus();
+
+    final userId =
+        _userIdController.text.trim();
+
+    final amountText =
+        _amountController.text.trim();
+
+    final description =
+        _descriptionController.text.trim();
+
+    if (userId.isEmpty) {
+      _showMessage(
+        'User ID দিন।',
+        error: true,
+      );
       return;
     }
 
+    final amount =
+        double.tryParse(amountText);
+
+    if (amount == null || amount <= 0) {
+      _showMessage(
+        'সঠিক Amount দিন।',
+        error: true,
+      );
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+    });
+
     try {
-      final walletRef = FirebaseFirestore
-          .instance
-          .collection(_walletCollection)
-          .doc(_walletDocument);
-
-      await FirebaseFirestore.instance
-          .runTransaction(
-        (transaction) async {
-          final snapshot =
-              await transaction.get(
-            walletRef,
-          );
-
-          final data =
-              snapshot.data() ?? {};
-
-          final oldRevenue =
-              _toDouble(
-            data['totalEarned'],
-          );
-
-          final oldBalance =
-              _toDouble(
-            data['balance'],
-          );
-
-          final oldPaid =
-              _toDouble(
-            data['totalPaidToUsers'],
-          );
-
-          transaction.set(
-            walletRef,
-            {
-              'balance':
-                  oldBalance + amount,
-              'totalEarned':
-                  oldRevenue + amount,
-              'totalPaidToUsers':
-                  oldPaid,
-              'updatedAt':
-                  FieldValue.serverTimestamp(),
-            },
-            SetOptions(
-              merge: true,
-            ),
-          );
-        },
+      await _earningsService.addAdminReward(
+        userId: userId,
+        amount: amount,
+        description: description.isEmpty
+            ? 'Admin Reward'
+            : description,
       );
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
-          SnackBar(
-            content: Text(
-              '${_money(amount)} Revenue যোগ হয়েছে।',
-            ),
-          ),
-        );
+      if (!mounted) {
+        return;
       }
+
+      _userIdController.clear();
+      _amountController.clear();
+      _descriptionController.clear();
+
+      _showMessage(
+        'User-কে ${_money(amount)} Reward দেওয়া হয়েছে।',
+      );
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
-          SnackBar(
-            content: Text(
-              'Revenue যোগ করা যায়নি: $e',
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        e.toString().replaceFirst(
+              'Exception: ',
+              '',
             ),
-          ),
-        );
+        error: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
       }
     }
   }
 
-  Future<void> _initializeWallet(
-    BuildContext context,
-  ) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection(_walletCollection)
-          .doc(_walletDocument)
-          .set(
-        {
-          'balance': 0,
-          'totalEarned': 0,
-          'totalPaidToUsers': 0,
-          'updatedAt':
-              FieldValue.serverTimestamp(),
-        },
-        SetOptions(
-          merge: true,
-        ),
-      );
+  void _showMessage(
+    String message, {
+    bool error = false,
+  }) {
+    ScaffoldMessenger.of(context)
+        .hideCurrentSnackBar();
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Owner Wallet তৈরি হয়েছে।',
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
-          SnackBar(
-            content: Text(
-              'Wallet তৈরি করা যায়নি: $e',
-            ),
-          ),
-        );
-      }
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior:
+            SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -225,477 +195,734 @@ class AdminEarningsScreen extends StatelessWidget {
         title: const Text(
           'Admin Earnings',
           style: TextStyle(
-            fontWeight:
-                FontWeight.bold,
+            fontWeight: FontWeight.bold,
           ),
         ),
         centerTitle: true,
       ),
-      body: StreamBuilder<
-          DocumentSnapshot<
-              Map<String, dynamic>>>(
-        stream: _walletStream(),
-        builder: (
-          context,
-          snapshot,
-        ) {
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child:
-                  CircularProgressIndicator(),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding:
-                    const EdgeInsets.all(
-                  20,
-                ),
-                child: Text(
-                  'Error: ${snapshot.error}',
-                ),
-              ),
-            );
-          }
-
-          final exists =
-              snapshot.data?.exists ??
-                  false;
-
-          final data =
-              snapshot.data?.data() ??
-                  {};
-
-          final balance =
-              _toDouble(
-            data['balance'],
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await Future<void>.delayed(
+            const Duration(
+              milliseconds: 500,
+            ),
           );
+        },
+        child: ListView(
+          padding:
+              const EdgeInsets.all(16),
+          children: [
+            _buildHeader(),
+            const SizedBox(height: 16),
+            _buildOwnerWallet(),
+            const SizedBox(height: 16),
+            _buildUserCount(),
+            const SizedBox(height: 16),
+            _buildRewardCard(),
+            const SizedBox(height: 16),
+            _buildTransactions(),
+            const SizedBox(height: 30),
+          ],
+        ),
+      ),
+    );
+  }
 
-          final revenue =
-              _toDouble(
-            data['totalEarned'],
-          );
-
-          final paidUsers =
-              _toDouble(
-            data['totalPaidToUsers'],
-          );
-
-          final netEarnings =
-              revenue - paidUsers;
-
-          return ListView(
-            padding:
-                const EdgeInsets.all(16),
-            children: [
-              // =================================================
-              // HEADER
-              // =================================================
-
-              Card(
-                elevation: 3,
-                child: Padding(
-                  padding:
-                      const EdgeInsets.all(
-                    20,
+  Widget _buildHeader() {
+    return Card(
+      elevation: 3,
+      child: Padding(
+        padding:
+            const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  child: Icon(
+                    Icons.account_balance_wallet,
+                    size: 30,
                   ),
-                  child: Row(
-                    children: [
-                      const CircleAvatar(
-                        radius: 30,
-                        child: Icon(
-                          Icons
-                              .account_balance,
-                          size: 32,
+                ),
+                SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    'Admin Earnings',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'অ্যাপের আয়, Owner Wallet এবং User Reward এখান থেকে পরিচালনা করুন।',
+              style: TextStyle(
+                fontSize: 15,
+                color:
+                    Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOwnerWallet() {
+    return StreamBuilder<
+        DocumentSnapshot<
+            Map<String, dynamic>>>(
+      stream:
+          _ownerWalletStream(),
+      builder: (
+        context,
+        snapshot,
+      ) {
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
+          return const Card(
+            child: Padding(
+              padding:
+                  EdgeInsets.all(30),
+              child: Center(
+                child:
+                    CircularProgressIndicator(),
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Card(
+            child: Padding(
+              padding:
+                  const EdgeInsets.all(16),
+              child: Text(
+                'Owner Wallet load করা যায়নি.\n${snapshot.error}',
+              ),
+            ),
+          );
+        }
+
+        final data =
+            snapshot.data?.data() ??
+                {};
+
+        final balance =
+            _toDouble(data['balance']);
+
+        final totalEarned =
+            _toDouble(data['totalEarned']);
+
+        final totalPaid =
+            _toDouble(
+          data['totalPaidToUsers'],
+        );
+
+        return Card(
+          elevation: 4,
+          child: Padding(
+            padding:
+                const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.account_balance_wallet,
+                      size: 30,
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      'Owner Wallet',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  _money(balance),
+                  style:
+                      const TextStyle(
+                    fontSize: 38,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'বর্তমান Owner Balance',
+                  style: TextStyle(
+                    color:
+                        Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(height: 25),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _statBox(
+                        icon:
+                            Icons.trending_up,
+                        title:
+                            'Total Revenue',
+                        value:
+                            _money(
+                          totalEarned,
                         ),
                       ),
-                      const SizedBox(
-                        width: 15,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _statBox(
+                        icon:
+                            Icons.payments,
+                        title:
+                            'Paid Users',
+                        value:
+                            _money(
+                          totalPaid,
+                        ),
                       ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment
-                                  .start,
-                          children: [
-                            const Text(
-                              'Admin Earnings',
-                              style:
-                                  TextStyle(
-                                fontSize: 23,
-                                fontWeight:
-                                    FontWeight
-                                        .bold,
-                              ),
-                            ),
-                            const SizedBox(
-                              height: 5,
-                            ),
-                            Text(
-                              'Owner Revenue ও Wallet পরিচালনা করুন',
-                              style: TextStyle(
-                                color: Colors
-                                    .grey
-                                    .shade700,
-                              ),
-                            ),
-                          ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _statBox({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Container(
+      padding:
+          const EdgeInsets.all(14),
+      decoration:
+          BoxDecoration(
+        borderRadius:
+            BorderRadius.circular(14),
+        border: Border.all(
+          color:
+              Colors.grey.shade300,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            size: 28,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            textAlign:
+                TextAlign.center,
+            style:
+                const TextStyle(
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            textAlign:
+                TextAlign.center,
+            style:
+                const TextStyle(
+              fontSize: 16,
+              fontWeight:
+                  FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserCount() {
+    return StreamBuilder<
+        QuerySnapshot<
+            Map<String, dynamic>>>(
+      stream: _usersStream(),
+      builder: (
+        context,
+        snapshot,
+      ) {
+        final users =
+            snapshot.data?.docs ??
+                [];
+
+        int admins = 0;
+
+        for (final user in users) {
+          final data =
+              user.data();
+
+          if (data['role'] ==
+              'admin') {
+            admins++;
+          }
+        }
+
+        return Card(
+          child: Padding(
+            padding:
+                const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  radius: 25,
+                  child: Icon(
+                    Icons.people,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Users',
+                        style:
+                            TextStyle(
+                          fontSize: 18,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${users.length} জন User',
+                      ),
+                      Text(
+                        '$admins জন Admin',
+                        style:
+                            TextStyle(
+                          color: Colors
+                              .grey
+                              .shade700,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-
-              const SizedBox(
-                height: 15,
-              ),
-
-              // =================================================
-              // WALLET NOT FOUND
-              // =================================================
-
-              if (!exists)
-                Card(
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.all(
-                      18,
-                    ),
-                    child: Column(
-                      children: [
-                        const Icon(
-                          Icons
-                              .account_balance_wallet_outlined,
-                          size: 55,
-                        ),
-                        const SizedBox(
-                          height: 10,
-                        ),
-                        const Text(
-                          'Owner Wallet পাওয়া যায়নি।',
-                          style:
-                              TextStyle(
-                            fontSize: 17,
-                            fontWeight:
-                                FontWeight
-                                    .bold,
-                          ),
-                        ),
-                        const SizedBox(
-                          height: 8,
-                        ),
-                        const Text(
-                          'প্রথমে Wallet তৈরি করুন।',
-                          textAlign:
-                              TextAlign.center,
-                        ),
-                        const SizedBox(
-                          height: 15,
-                        ),
-                        SizedBox(
-                          width:
-                              double.infinity,
-                          child:
-                              ElevatedButton
-                                  .icon(
-                            onPressed: () {
-                              _initializeWallet(
-                                context,
-                              );
-                            },
-                            icon:
-                                const Icon(
-                              Icons
-                                  .add,
-                            ),
-                            label:
-                                const Text(
-                              'Create Owner Wallet',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-              if (exists) ...[
-                // =================================================
-                // BALANCE
-                // =================================================
-
-                Card(
-                  elevation: 3,
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.all(
-                      20,
-                    ),
-                    child: Column(
-                      children: [
-                        const Icon(
-                          Icons
-                              .account_balance_wallet,
-                          size: 40,
-                        ),
-                        const SizedBox(
-                          height: 8,
-                        ),
-                        const Text(
-                          'Owner Balance',
-                          style:
-                              TextStyle(
-                            fontSize: 17,
-                            fontWeight:
-                                FontWeight
-                                    .bold,
-                          ),
-                        ),
-                        const SizedBox(
-                          height: 8,
-                        ),
-                        Text(
-                          _money(balance),
-                          style:
-                              const TextStyle(
-                            fontSize: 34,
-                            fontWeight:
-                                FontWeight
-                                    .bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 12,
-                ),
-
-                // =================================================
-                // REVENUE
-                // =================================================
-
-                Card(
-                  child: ListTile(
-                    leading:
-                        const CircleAvatar(
-                      child: Icon(
-                        Icons
-                            .trending_up,
-                      ),
-                    ),
-                    title: const Text(
-                      'Total Revenue',
-                      style:
-                          TextStyle(
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                    subtitle:
-                        const Text(
-                      'অ্যাপ থেকে মোট জমা হওয়া Revenue',
-                    ),
-                    trailing: Text(
-                      _money(revenue),
-                      style:
-                          const TextStyle(
-                        fontWeight:
-                            FontWeight.bold,
-                        fontSize: 17,
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 10,
-                ),
-
-                // =================================================
-                // PAID USERS
-                // =================================================
-
-                Card(
-                  child: ListTile(
-                    leading:
-                        const CircleAvatar(
-                      child: Icon(
-                        Icons
-                            .payments,
-                      ),
-                    ),
-                    title: const Text(
-                      'Paid to Users',
-                      style:
-                          TextStyle(
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                    subtitle:
-                        const Text(
-                      'Users-কে মোট দেওয়া টাকা',
-                    ),
-                    trailing: Text(
-                      _money(
-                        paidUsers,
-                      ),
-                      style:
-                          const TextStyle(
-                        fontWeight:
-                            FontWeight.bold,
-                        fontSize: 17,
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 10,
-                ),
-
-                // =================================================
-                // NET EARNINGS
-                // =================================================
-
-                Card(
-                  child: ListTile(
-                    leading:
-                        const CircleAvatar(
-                      child: Icon(
-                        Icons
-                            .account_balance,
-                      ),
-                    ),
-                    title: const Text(
-                      'Net Earnings',
-                      style:
-                          TextStyle(
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                    subtitle:
-                        const Text(
-                      'Revenue - Users Payment',
-                    ),
-                    trailing: Text(
-                      _money(
-                        netEarnings,
-                      ),
-                      style:
-                          const TextStyle(
-                        fontWeight:
-                            FontWeight.bold,
-                        fontSize: 17,
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 18,
-                ),
-
-                // =================================================
-                // ADD REVENUE
-                // =================================================
-
-                SizedBox(
-                  width:
-                      double.infinity,
-                  child:
-                      ElevatedButton.icon(
-                    onPressed: () {
-                      _addRevenue(
-                        context,
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.add,
-                    ),
-                    label: const Text(
-                      'Add Revenue',
-                    ),
-                    style:
-                        ElevatedButton
-                            .styleFrom(
-                      padding:
-                          const EdgeInsets
-                              .symmetric(
-                        vertical: 15,
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 12,
-                ),
-
-                // =================================================
-                // INFORMATION
-                // =================================================
-
-                Card(
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.all(
-                      16,
-                    ),
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(
-                              Icons.info_outline,
-                            ),
-                            SizedBox(
-                              width: 8,
-                            ),
-                            Text(
-                              'Revenue সম্পর্কে',
-                              style:
-                                  TextStyle(
-                                fontSize: 17,
-                                fontWeight:
-                                    FontWeight
-                                        .bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(
-                          height: 10,
-                        ),
-                        Text(
-                          'Revenue হলো অ্যাপের আয়ের টাকা। '
-                          'বাস্তবে বিজ্ঞাপন, পেইড সার্ভিস, কমিশন বা অন্য কোনো বৈধ আয়ের উৎস থেকে টাকা পাওয়ার পর সেটি Revenue হিসেবে হিসাব করা যাবে।',
-                          style:
-                              TextStyle(
-                            color: Colors
-                                .grey
-                                .shade700,
-                          ),
-                        ),
-                      ],
-                    ),
+                Text(
+                  '${users.length}',
+                  style:
+                      const TextStyle(
+                    fontSize: 28,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
               ],
-            ],
-          );
-        },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRewardCard() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding:
+            const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                CircleAvatar(
+                  child: Icon(
+                    Icons.card_giftcard,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Give User Reward',
+                  style:
+                      TextStyle(
+                    fontSize: 20,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Admin থেকে কোনো User-কে Reward দেওয়ার জন্য ব্যবহার করুন।',
+              style: TextStyle(
+                color:
+                    Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller:
+                  _userIdController,
+              decoration:
+                  const InputDecoration(
+                labelText:
+                    'User ID',
+                hintText:
+                    'যেমন: eEF4zV8Lm2dSVaTXX7zig3slPRC3',
+                prefixIcon:
+                    Icon(
+                  Icons.person,
+                ),
+                border:
+                    OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller:
+                  _amountController,
+              keyboardType:
+                  const TextInputType
+                      .numberWithOptions(
+                decimal: true,
+              ),
+              decoration:
+                  const InputDecoration(
+                labelText:
+                    'Amount',
+                hintText:
+                    'যেমন: 10',
+                prefixIcon:
+                    Icon(
+                  Icons.account_balance_wallet,
+                ),
+                border:
+                    OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller:
+                  _descriptionController,
+              decoration:
+                  const InputDecoration(
+                labelText:
+                    'Description',
+                hintText:
+                    'যেমন: Referral Reward',
+                prefixIcon:
+                    Icon(
+                  Icons.description,
+                ),
+                border:
+                    OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width:
+                  double.infinity,
+              height: 52,
+              child:
+                  ElevatedButton.icon(
+                onPressed:
+                    _isProcessing
+                        ? null
+                        : _addUserReward,
+                icon: _isProcessing
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child:
+                            CircularProgressIndicator(
+                          strokeWidth:
+                              2,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.add_card,
+                      ),
+                label: Text(
+                  _isProcessing
+                      ? 'Processing...'
+                      : 'Give Reward',
+                  style:
+                      const TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransactions() {
+    return Card(
+      child: Padding(
+        padding:
+            const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                CircleAvatar(
+                  child: Icon(
+                    Icons.receipt_long,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Recent Transactions',
+                  style:
+                      TextStyle(
+                    fontSize: 20,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            StreamBuilder<
+                QuerySnapshot<
+                    Map<String, dynamic>>>(
+              stream:
+                  _transactionsStream(),
+              builder: (
+                context,
+                snapshot,
+              ) {
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Padding(
+                    padding:
+                        EdgeInsets.all(20),
+                    child: Center(
+                      child:
+                          CircularProgressIndicator(),
+                    ),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Padding(
+                    padding:
+                        const EdgeInsets.all(
+                      12,
+                    ),
+                    child: Text(
+                      'Transaction load করা যায়নি.\n${snapshot.error}',
+                    ),
+                  );
+                }
+
+                final transactions =
+                    snapshot.data?.docs ??
+                        [];
+
+                if (transactions
+                    .isEmpty) {
+                  return const Padding(
+                    padding:
+                        EdgeInsets.all(20),
+                    child: Center(
+                      child: Text(
+                        'এখনও কোনো Transaction নেই।',
+                      ),
+                    ),
+                  );
+                }
+
+                return Column(
+                  children:
+                      transactions
+                          .map(
+                    (document) {
+                      return _transactionItem(
+                        document,
+                      );
+                    },
+                  ).toList(),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _transactionItem(
+    DocumentSnapshot<
+        Map<String, dynamic>> document,
+  ) {
+    final data =
+        document.data() ??
+            {};
+
+    final amount =
+        _toDouble(
+      data['amount'],
+    );
+
+    final type =
+        data['type']
+            ?.toString() ??
+        'transaction';
+
+    final description =
+        data['description']
+            ?.toString() ??
+        '';
+
+    final userId =
+        data['userId']
+            ?.toString() ??
+        '';
+
+    final status =
+        data['status']
+            ?.toString() ??
+        '';
+
+    final createdAt =
+        data['createdAt'];
+
+    String dateText =
+        'সময় পাওয়া যায়নি';
+
+    if (createdAt
+        is Timestamp) {
+      final date =
+          createdAt.toDate();
+
+      dateText =
+          '${date.day.toString().padLeft(2, '0')}/'
+          '${date.month.toString().padLeft(2, '0')}/'
+          '${date.year} '
+          '${date.hour.toString().padLeft(2, '0')}:'
+          '${date.minute.toString().padLeft(2, '0')}';
+    }
+
+    return Container(
+      margin:
+          const EdgeInsets.only(
+        bottom: 10,
+      ),
+      padding:
+          const EdgeInsets.all(12),
+      decoration:
+          BoxDecoration(
+        borderRadius:
+            BorderRadius.circular(12),
+        border: Border.all(
+          color:
+              Colors.grey.shade300,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            child: Icon(
+              amount >= 0
+                  ? Icons.arrow_upward
+                  : Icons.arrow_downward,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  description.isEmpty
+                      ? type
+                      : description,
+                  style:
+                      const TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                if (userId.isNotEmpty)
+                  Text(
+                    'User: $userId',
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow.ellipsis,
+                    style:
+                        TextStyle(
+                      fontSize: 12,
+                      color: Colors
+                          .grey
+                          .shade700,
+                    ),
+                  ),
+                const SizedBox(height: 3),
+                Text(
+                  dateText,
+                  style:
+                      TextStyle(
+                    fontSize: 11,
+                    color: Colors
+                        .grey
+                        .shade600,
+                  ),
+                ),
+                if (status.isNotEmpty)
+                  Text(
+                    'Status: $status',
+                    style:
+                        TextStyle(
+                      fontSize: 11,
+                      color: Colors
+                          .grey
+                          .shade600,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            _money(amount),
+            style:
+                const TextStyle(
+              fontWeight:
+                  FontWeight.bold,
+              fontSize: 15,
+            ),
+          ),
+        ],
       ),
     );
   }
