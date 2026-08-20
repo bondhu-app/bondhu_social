@@ -2,6 +2,7 @@ package com.bondhu.social
 
 import android.content.Context
 import android.graphics.Color
+import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -38,10 +39,7 @@ class ListTileNativeAdFactory(
             Color.WHITE
         )
 
-        // ========================================================
-        // HEADLINE
-        // ========================================================
-
+        // Headline
         val headlineView = TextView(context)
 
         headlineView.textSize = 17f
@@ -68,10 +66,7 @@ class ListTileNativeAdFactory(
             )
         )
 
-        // ========================================================
-        // BODY
-        // ========================================================
-
+        // Body
         val bodyView = TextView(context)
 
         bodyView.textSize = 14f
@@ -98,31 +93,18 @@ class ListTileNativeAdFactory(
             )
         )
 
-        // ========================================================
-        // ADD CONTAINER
-        // ========================================================
+        // Add container
+        adView.addView(container)
 
-        adView.addView(
-            container
-        )
-
-        // ========================================================
-        // REGISTER AD ASSETS
-        // ========================================================
-
+        // Register assets
         adView.headlineView =
             headlineView
 
         adView.bodyView =
             bodyView
 
-        // ========================================================
-        // SET NATIVE AD
-        // ========================================================
-
-        adView.setNativeAd(
-            nativeAd
-        )
+        // Attach native ad
+        adView.setNativeAd(nativeAd)
 
         return adView
     }
