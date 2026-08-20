@@ -38,12 +38,12 @@ jobs:
           echo "Android project found"
           echo "MainActivity.kt found"
 
-      - name: Check Firebase configuration
+      - name: Check Firebase
         run: |
           test -f android/app/google-services.json
           echo "google-services.json found"
 
-      - name: Check pubspec.yaml
+      - name: Check pubspec
         run: |
           test -f pubspec.yaml
           grep -q "uses-material-design: true" pubspec.yaml
@@ -54,36 +54,6 @@ jobs:
 
       - name: Get dependencies
         run: flutter pub get
-
-      - name: Find Android v1 embedding references
-        shell: bash
-        run: |
-          echo "========================================"
-          echo "Searching Android project for v1 embedding"
-          echo "========================================"
-
-          FOUND=0
-
-          if grep -RInE \
-            "io\.flutter\.app\.FlutterActivity|io\.flutter\.app\.FlutterApplication|PluginRegistry\.Registrar|registerWith" \
-            android \
-            --exclude-dir=build \
-            --exclude-dir=.gradle; then
-            FOUND=1
-          fi
-
-          echo ""
-          echo "========================================"
-
-          if [ "$FOUND" -eq 1 ]; then
-            echo "Android v1 embedding reference FOUND."
-            echo "Build stopped intentionally so we can identify it."
-            exit 1
-          else
-            echo "No Android v1 embedding reference found."
-          fi
-
-          echo "========================================"
 
       - name: Build APK
         run: flutter build apk --release
