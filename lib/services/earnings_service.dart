@@ -12,17 +12,8 @@ class EarningsService {
   final FirebaseAuth _auth =
       FirebaseAuth.instance;
 
-  // ============================================================
-  // SETTINGS
-  // ============================================================
-
   static const double minimumWithdrawAmount = 100.0;
-
   static const double referralReward = 10.0;
-
-  // ============================================================
-  // COLLECTIONS
-  // ============================================================
 
   CollectionReference<Map<String, dynamic>> get _users =>
       _firestore.collection('users');
@@ -39,17 +30,9 @@ class EarningsService {
   DocumentReference<Map<String, dynamic>> get _ownerWallet =>
       _firestore.collection('settings').doc('owner_wallet');
 
-  // ============================================================
-  // CURRENT USER
-  // ============================================================
-
   User? get currentUser => _auth.currentUser;
 
   String? get currentUserId => _auth.currentUser?.uid;
-
-  // ============================================================
-  // USER WALLET STREAM
-  // ============================================================
 
   Stream<DocumentSnapshot<Map<String, dynamic>>> walletStream() {
     final user = _auth.currentUser;
@@ -62,10 +45,6 @@ class EarningsService {
 
     return _users.doc(user.uid).snapshots();
   }
-
-  // ============================================================
-  // GET USER WALLET
-  // ============================================================
 
   Future<Map<String, dynamic>> getWallet() async {
     final user = _auth.currentUser;
@@ -92,10 +71,6 @@ class EarningsService {
       'totalWithdrawn': _toDouble(data['totalWithdrawn']),
     };
   }
-
-  // ============================================================
-  // CREATE USER WALLET
-  // ============================================================
 
   Future<void> createWalletIfNeeded() async {
     final user = _auth.currentUser;
@@ -126,7 +101,6 @@ class EarningsService {
     }
 
     final data = snapshot.data() ?? {};
-
     final updates = <String, dynamic>{};
 
     if (!data.containsKey('balance')) {
@@ -142,7 +116,8 @@ class EarningsService {
     }
 
     if (updates.isNotEmpty) {
-      updates['updatedAt'] = FieldValue.serverTimestamp();
+      updates['updatedAt'] =
+          FieldValue.serverTimestamp();
 
       await userRef.set(
         updates,
@@ -151,17 +126,10 @@ class EarningsService {
     }
   }
 
-  // ============================================================
-  // OWNER WALLET STREAM
-  // ============================================================
-
-  Stream<DocumentSnapshot<Map<String, dynamic>>> ownerWalletStream() {
+  Stream<DocumentSnapshot<Map<String, dynamic>>>
+      ownerWalletStream() {
     return _ownerWallet.snapshots();
   }
-
-  // ============================================================
-  // GET OWNER WALLET
-  // ============================================================
 
   Future<Map<String, dynamic>> getOwnerWallet() async {
     final snapshot = await _ownerWallet.get();
@@ -171,32 +139,28 @@ class EarningsService {
     return {
       'balance': _toDouble(data['balance']),
       'totalEarned': _toDouble(data['totalEarned']),
-      'totalPaidToUsers': _toDouble(
-        data['totalPaidToUsers'],
-      ),
+      'totalPaidToUsers':
+          _toDouble(data['totalPaidToUsers']),
     };
   }
-
-  // ============================================================
-  // CREATE OWNER WALLET
-  // ============================================================
 
   Future<void> createOwnerWalletIfNeeded() async {
     final snapshot = await _ownerWallet.get();
 
     if (!snapshot.exists) {
-      await _ownerWallet.set({
-        'balance': 0.0,
-        'totalEarned': 0.0,
-        'totalPaidToUsers': 0.0,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await _ownerWallet.set(
+        {
+          'balance': 0.0,
+          'totalEarned': 0.0,
+          'totalPaidToUsers': 0.0,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+      );
 
       return;
     }
 
     final data = snapshot.data() ?? {};
-
     final updates = <String, dynamic>{};
 
     if (!data.containsKey('balance')) {
@@ -212,7 +176,8 @@ class EarningsService {
     }
 
     if (updates.isNotEmpty) {
-      updates['updatedAt'] = FieldValue.serverTimestamp();
+      updates['updatedAt'] =
+          FieldValue.serverTimestamp();
 
       await _ownerWallet.set(
         updates,
@@ -220,10 +185,6 @@ class EarningsService {
       );
     }
   }
-
-  // ============================================================
-  // USER TRANSACTIONS
-  // ============================================================
 
   Stream<QuerySnapshot<Map<String, dynamic>>>
       myTransactionsStream() {
@@ -247,10 +208,6 @@ class EarningsService {
         .snapshots();
   }
 
-  // ============================================================
-  // ADD USER EARNING
-  // ============================================================
-
   Future<void> addEarning({
     required double amount,
     required String type,
@@ -271,26 +228,10 @@ class EarningsService {
       throw Exception('Earning type দিন।');
     }
 
-    /*
-     * IMPORTANT
-     *
-     * User wallet-এর টাকা সরাসরি client app থেকে বাড়ানো নিরাপদ নয়।
-     *
-     * তাই সাধারণ user-এর জন্য এই method ব্যবহার করা উচিত নয়।
-     * Admin/System reward দেওয়ার কাজ trusted backend/Admin operation
-     * দিয়ে করতে হবে।
-     *
-     * এই method রাখা হয়েছে যাতে পুরনো app code compile করে।
-     */
-
     throw Exception(
       'Earning যোগ করার জন্য Admin/System operation ব্যবহার করুন।',
     );
   }
-
-  // ============================================================
-  // ADMIN / SYSTEM REWARD USER
-  // ============================================================
 
   Future<void> addAdminReward({
     required String userId,
@@ -307,14 +248,12 @@ class EarningsService {
     _validateAmount(amount);
 
     final userRef = _users.doc(cleanUserId);
-
     final transactionRef = _transactions.doc();
 
     await _firestore.runTransaction(
       (transaction) async {
-        final userSnapshot = await transaction.get(
-          userRef,
-        );
+        final userSnapshot =
+            await transaction.get(userRef);
 
         if (!userSnapshot.exists) {
           throw Exception(
@@ -322,22 +261,23 @@ class EarningsService {
           );
         }
 
-        final data = userSnapshot.data() ?? {};
+        final data =
+            userSnapshot.data() ?? {};
 
-        final balance = _toDouble(
-          data['balance'],
-        );
+        final balance =
+            _toDouble(data['balance']);
 
-        final totalEarned = _toDouble(
-          data['totalEarned'],
-        );
+        final totalEarned =
+            _toDouble(data['totalEarned']);
 
         transaction.set(
           userRef,
           {
             'balance': balance + amount,
-            'totalEarned': totalEarned + amount,
-            'updatedAt': FieldValue.serverTimestamp(),
+            'totalEarned':
+                totalEarned + amount,
+            'updatedAt':
+                FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),
         );
@@ -348,20 +288,18 @@ class EarningsService {
             'userId': cleanUserId,
             'amount': amount,
             'type': 'admin_reward',
-            'description': description.trim(),
+            'description':
+                description.trim(),
             'referenceId': referenceId,
             'status': 'completed',
             'transactionType': 'earning',
-            'createdAt': FieldValue.serverTimestamp(),
+            'createdAt':
+                FieldValue.serverTimestamp(),
           },
         );
       },
     );
   }
-
-  // ============================================================
-  // REFERRAL EARNING
-  // ============================================================
 
   Future<void> processReferralReward({
     required String referralCode,
@@ -380,7 +318,8 @@ class EarningsService {
       );
     }
 
-    final currentUser = _auth.currentUser;
+    final currentUser =
+        _auth.currentUser;
 
     if (currentUser == null) {
       throw Exception(
@@ -394,25 +333,10 @@ class EarningsService {
       );
     }
 
-    /*
-     * Referral reward client-side থেকে সরাসরি wallet-এ যোগ করা
-     * নিরাপদ নয়।
-     *
-     * তাই referral reward trusted backend/Admin operation দিয়ে
-     * process করতে হবে।
-     *
-     * Duplicate reward ঠেকানোর জন্য referral_rewards collection
-     * রাখা হয়েছে।
-     */
-
     throw Exception(
       'Referral reward System/Admin operation দিয়ে process করতে হবে।',
     );
   }
-
-  // ============================================================
-  // OWNER REVENUE
-  // ============================================================
 
   Future<void> addOwnerRevenue({
     required double amount,
@@ -430,20 +354,10 @@ class EarningsService {
       );
     }
 
-    /*
-     * Owner wallet সাধারণ user-এর client-side operation নয়।
-     *
-     * Admin/backend operation থেকে এটি চালাতে হবে।
-     */
-
     throw Exception(
       'Owner revenue শুধুমাত্র Admin/System operation থেকে যোগ করা যাবে।',
     );
   }
-
-  // ============================================================
-  // WITHDRAW REQUEST
-  // ============================================================
 
   Future<void> createWithdrawRequest({
     required double amount,
@@ -500,48 +414,23 @@ class EarningsService {
       );
     }
 
-    final userRef = _users.doc(user.uid);
+    final withdrawRef =
+        _withdrawRequests.doc();
 
-    final withdrawRef = _withdrawRequests.doc();
-
-    /*
-     * IMPORTANT
-     *
-     * এখানে wallet balance কমানো হচ্ছে না।
-     *
-     * কারণ বর্তমানে Firestore Rules অনুযায়ী normal user wallet
-     * পরিবর্তন করতে পারে না।
-     *
-     * Request শুধু pending হিসেবে তৈরি হবে।
-     *
-     * Admin approve করলে trusted Admin/System operation wallet
-     * থেকে টাকা reserve/complete করবে।
-     */
-
-    await withdrawRef.set({
-      'userId': user.uid,
-      'amount': amount,
-      'method': cleanMethod,
-      'account': cleanAccount,
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    /*
-     * Transaction history client-side থেকে তৈরি করা যাবে না,
-     * কারণ transactions collection protected।
-     *
-     * Admin/backend withdraw process করার সময় history তৈরি করবে।
-     */
-
-    // userRef ব্যবহার করা হয়েছে যাতে analyzer-এ unused warning না আসে।
-    userRef.path;
+    await withdrawRef.set(
+      {
+        'userId': user.uid,
+        'amount': amount,
+        'method': cleanMethod,
+        'account': cleanAccount,
+        'status': 'pending',
+        'createdAt':
+            FieldValue.serverTimestamp(),
+        'updatedAt':
+            FieldValue.serverTimestamp(),
+      },
+    );
   }
-
-  // ============================================================
-  // MY WITHDRAW REQUESTS
-  // ============================================================
 
   Stream<QuerySnapshot<Map<String, dynamic>>>
       myWithdrawRequestsStream() {
@@ -567,15 +456,12 @@ class EarningsService {
         .snapshots();
   }
 
-  // ============================================================
-  // GET SINGLE WITHDRAW REQUEST
-  // ============================================================
-
   Future<DocumentSnapshot<Map<String, dynamic>>>
       getWithdrawRequest(
     String requestId,
   ) async {
-    final cleanId = requestId.trim();
+    final cleanId =
+        requestId.trim();
 
     if (cleanId.isEmpty) {
       throw Exception(
@@ -583,9 +469,10 @@ class EarningsService {
       );
     }
 
-    final snapshot = await _withdrawRequests
-        .doc(cleanId)
-        .get();
+    final snapshot =
+        await _withdrawRequests
+            .doc(cleanId)
+            .get();
 
     if (!snapshot.exists) {
       throw Exception(
@@ -593,7 +480,8 @@ class EarningsService {
       );
     }
 
-    final user = _auth.currentUser;
+    final user =
+        _auth.currentUser;
 
     if (user == null) {
       throw Exception(
@@ -601,7 +489,8 @@ class EarningsService {
       );
     }
 
-    final data = snapshot.data() ?? {};
+    final data =
+        snapshot.data() ?? {};
 
     if (data['userId'] != user.uid) {
       throw Exception(
@@ -611,10 +500,6 @@ class EarningsService {
 
     return snapshot;
   }
-
-  // ============================================================
-  // CANCEL WITHDRAW REQUEST
-  // ============================================================
 
   Future<void> cancelWithdrawRequest(
     String requestId,
@@ -627,7 +512,8 @@ class EarningsService {
       );
     }
 
-    final cleanId = requestId.trim();
+    final cleanId =
+        requestId.trim();
 
     if (cleanId.isEmpty) {
       throw Exception(
@@ -635,67 +521,55 @@ class EarningsService {
       );
     }
 
-    /*
-     * বর্তমান Rules অনুযায়ী normal user withdraw request update
-     * করতে পারে না।
-     *
-     * তাই client-side cancellation নিরাপদভাবে করা যাবে না।
-     *
-     * Admin/System cancellation করতে হবে।
-     */
-
     throw Exception(
       'Withdraw cancellation বর্তমানে Admin/System operation দিয়ে করতে হবে।',
     );
   }
 
-  // ============================================================
-  // CHECK WHETHER USER HAS PENDING WITHDRAW
-  // ============================================================
-
   Future<bool> hasPendingWithdraw() async {
-    final user = _auth.currentUser;
+    final user =
+        _auth.currentUser;
 
     if (user == null) {
       return false;
     }
 
-    final snapshot = await _withdrawRequests
-        .where(
-          'userId',
-          isEqualTo: user.uid,
-        )
-        .where(
-          'status',
-          isEqualTo: 'pending',
-        )
-        .limit(1)
-        .get();
+    final snapshot =
+        await _withdrawRequests
+            .where(
+              'userId',
+              isEqualTo: user.uid,
+            )
+            .where(
+              'status',
+              isEqualTo: 'pending',
+            )
+            .limit(1)
+            .get();
 
     return snapshot.docs.isNotEmpty;
   }
 
-  // ============================================================
-  // GET PENDING WITHDRAW AMOUNT
-  // ============================================================
-
-  Future<double> getPendingWithdrawAmount() async {
-    final user = _auth.currentUser;
+  Future<double>
+      getPendingWithdrawAmount() async {
+    final user =
+        _auth.currentUser;
 
     if (user == null) {
       return 0.0;
     }
 
-    final snapshot = await _withdrawRequests
-        .where(
-          'userId',
-          isEqualTo: user.uid,
-        )
-        .where(
-          'status',
-          isEqualTo: 'pending',
-        )
-        .get();
+    final snapshot =
+        await _withdrawRequests
+            .where(
+              'userId',
+              isEqualTo: user.uid,
+            )
+            .where(
+              'status',
+              isEqualTo: 'pending',
+            )
+            .get();
 
     double total = 0.0;
 
@@ -710,11 +584,9 @@ class EarningsService {
     return total;
   }
 
-  // ============================================================
-  // HELPERS
-  // ============================================================
-
-  static double _toDouble(dynamic value) {
+  static double _toDouble(
+    dynamic value,
+  ) {
     if (value is num) {
       return value.toDouble();
     }
@@ -726,8 +598,11 @@ class EarningsService {
     return 0.0;
   }
 
-  static void _validateAmount(double amount) {
-    if (amount.isNaN || amount.isInfinite) {
+  static void _validateAmount(
+    double amount,
+  ) {
+    if (amount.isNaN ||
+        amount.isInfinite) {
       throw Exception(
         'Amount সঠিক নয়।',
       );
