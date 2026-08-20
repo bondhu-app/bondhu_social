@@ -18,21 +18,27 @@ Future<void> main() async {
   // FIREBASE INITIALIZE
   // ============================================================
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    debugPrint('Firebase initialization failed: $e');
+  }
 
   // ============================================================
   // ADMOB INITIALIZE
+  //
+  // AdMob configuration ভুল থাকলেও যেন App বন্ধ না হয়ে যায়।
+  // Android Manifest-এ AdMob App ID ঠিক করার পর এটি কাজ করবে।
   // ============================================================
 
-  await MobileAds.instance.initialize();
-
-  // ============================================================
-  // LOAD ADS
-  // ============================================================
-
-  AdService.instance.preloadAds();
+  try {
+    await MobileAds.instance.initialize();
+    AdService.instance.preloadAds();
+  } catch (e) {
+    debugPrint('AdMob initialization failed: $e');
+  }
 
   // ============================================================
   // START APP
@@ -97,6 +103,10 @@ class AuthGate extends StatelessWidget {
           return const SplashScreen();
         }
 
+        if (snapshot.hasError) {
+          return const LoginScreen();
+        }
+
         final user = snapshot.data;
 
         if (user == null) {
@@ -132,6 +142,7 @@ class UserRoleGate extends StatelessWidget {
 
     final email = user.email?.trim().toLowerCase();
 
+    // Admin email
     if (email == adminEmail.toLowerCase()) {
       return true;
     }
@@ -154,7 +165,8 @@ class UserRoleGate extends StatelessWidget {
           .toLowerCase();
 
       return role == 'admin';
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Admin role check failed: $e');
       return false;
     }
   }
@@ -215,7 +227,6 @@ class SplashScreen extends StatelessWidget {
 
             Text(
               'বন্ধু সোশ্যাল',
-
               style: TextStyle(
                 fontSize: 30,
                 fontWeight: FontWeight.bold,
