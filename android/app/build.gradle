@@ -1,52 +1,20 @@
-plugins {
-    id 'com.android.application'
-    id 'kotlin-android'
-    id 'dev.flutter.flutter-gradle-plugin'
-    id 'com.google.gms.google-services'
-}
-
-android {
-    namespace = 'com.bondhu.social'
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
-
-    defaultConfig {
-        applicationId = 'com.bondhu.social'
-
-        minSdk = 23
-
-        targetSdk = flutter.targetSdkVersion
-
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
-
-        multiDexEnabled = true
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = '17'
-    }
-
-    buildTypes {
-        release {
-            minifyEnabled = false
-            shrinkResources = false
-
-            signingConfig = signingConfigs.debug
-        }
-
-        debug {
-            minifyEnabled = false
-            shrinkResources = false
-        }
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
     }
 }
 
-flutter {
-    source = '../..'
+rootProject.buildDir = "../build"
+
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
 }
