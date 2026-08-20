@@ -1,11 +1,11 @@
 name: bondhu_social
-description: "বন্ধু সোশ্যাল - Social Media App"
-publish_to: 'none'
+description: A social media application for friends.
+publish_to: "none"
 
 version: 1.0.0+1
 
 environment:
-  sdk: ">=3.8.0 <4.0.0"
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -13,46 +13,14 @@ dependencies:
 
   cupertino_icons: ^1.0.8
 
-  # ==========================================================
-  # FIREBASE
-  # ==========================================================
-
+  # Firebase
   firebase_core: ^4.0.0
   firebase_auth: ^6.0.0
   cloud_firestore: ^6.0.0
   firebase_storage: ^13.0.0
 
-  # ==========================================================
-  # GOOGLE SIGN IN
-  # ==========================================================
-
-  google_sign_in: ^7.1.1
-
-  # ==========================================================
-  # GOOGLE MOBILE ADS
-  # ==========================================================
-
+  # Google Mobile Ads
   google_mobile_ads: ^7.0.0
-
-  # ==========================================================
-  # STATE MANAGEMENT
-  # ==========================================================
-
-  provider: ^6.1.5+1
-
-  # ==========================================================
-  # IMAGE
-  # ==========================================================
-
-  image_picker: ^1.2.1
-  cached_network_image: ^3.4.1
-
-  # ==========================================================
-  # OTHER
-  # ==========================================================
-
-  intl: ^0.20.2
-  uuid: ^4.5.1
 
 dev_dependencies:
   flutter_test:
@@ -61,7 +29,4 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 flutter:
-  uses-material-design: true
-
-  assets:
-    - assets/images/
+  uses-material-design: truetrue
