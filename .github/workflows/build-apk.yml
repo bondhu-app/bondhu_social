@@ -8,42 +8,115 @@ on:
 
 jobs:
   build:
-    name: Build বন্ধু সোশ্যাল APK
+    name: Build Bondhu Social APK
     runs-on: ubuntu-latest
 
     steps:
+      # ==========================================================
+      # CHECKOUT
+      # ==========================================================
+
       - name: Checkout project
         uses: actions/checkout@v4
+
+      # ==========================================================
+      # JAVA 17
+      # ==========================================================
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
+          cache: gradle
+
+      # ==========================================================
+      # FLUTTER
+      # ==========================================================
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: '3.47.0'
+          flutter-version: "3.47.0"
           cache: true
 
+      # ==========================================================
+      # FLUTTER VERSION
+      # ==========================================================
+
       - name: Check Flutter
-        run: flutter --version
-
-      - name: Recreate Android project
-        run: flutter create --platforms=android --org com.bondhu .
-
-      - name: Restore Firebase configuration
         run: |
-          test -f android/app/google-services.json
-          echo "google-services.json found"
+          flutter --version
+          dart --version
 
-      - name: Get dependencies
+      # ==========================================================
+      # CHECK PROJECT FILES
+      # ==========================================================
+
+      - name: Check required files
+        run: |
+          echo "Checking project files..."
+
+          test -f pubspec.yaml
+          test -f android/app/google-services.json
+          test -f android/app/src/main/kotlin/com/bondhu/social/MainActivity.kt
+          test -f android/app/src/main/kotlin/com/bondhu/social/ListTileNativeAdFactory.kt
+
+          echo "All required files found."
+
+      # ==========================================================
+      # SHOW PUBSPEC
+      # ==========================================================
+
+      - name: Verify pubspec.yaml
+        run: |
+          echo "===== pubspec.yaml ====="
+          cat pubspec.yaml
+          echo "========================"
+
+      # ==========================================================
+      # FLUTTER CLEAN
+      # ==========================================================
+
+      - name: Flutter clean
+        run: flutter clean
+
+      # ==========================================================
+      # GET DEPENDENCIES
+      # ==========================================================
+
+      - name: Flutter pub get
         run: flutter pub get
 
-      - name: Build APK
+      # ==========================================================
+      # ANALYZE
+      # ==========================================================
+
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-infos
+
+      # ==========================================================
+      # BUILD RELEASE APK
+      # ==========================================================
+
+      - name: Build Release APK
         run: flutter build apk --release
+
+      # ==========================================================
+      # CHECK APK
+      # ==========================================================
+
+      - name: Verify APK
+        run: |
+          echo "===== APK FILE ====="
+          ls -lh build/app/outputs/flutter-apk/
+          test -f build/app/outputs/flutter-apk/app-release.apk
+          echo "APK successfully created."
+
+      # ==========================================================
+      # UPLOAD APK
+      # ==========================================================
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
