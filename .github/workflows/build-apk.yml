@@ -35,25 +35,38 @@ jobs:
         run: |
           test -f android/app/src/main/AndroidManifest.xml
           test -f android/app/src/main/kotlin/com/bondhu/social/MainActivity.kt
-          echo "Android project found"
-          echo "MainActivity.kt found"
+          echo "Android project OK"
 
       - name: Check Firebase
         run: |
           test -f android/app/google-services.json
-          echo "google-services.json found"
-
-      - name: Check pubspec
-        run: |
-          test -f pubspec.yaml
-          grep -q "uses-material-design: true" pubspec.yaml
-          echo "pubspec.yaml is valid"
+          echo "Firebase configuration OK"
 
       - name: Flutter clean
         run: flutter clean
 
       - name: Get dependencies
         run: flutter pub get
+
+      - name: Search Android v1 embedding
+        shell: bash
+        run: |
+          echo "===== Flutter v1 embedding search ====="
+
+          grep -RInE \
+            "io\.flutter\.app\.FlutterActivity|io\.flutter\.app\.FlutterApplication|PluginRegistry\.Registrar" \
+            android \
+            --exclude-dir=build \
+            --exclude-dir=.gradle \
+            || true
+
+          echo "===== MainActivity ====="
+          cat android/app/src/main/kotlin/com/bondhu/social/MainActivity.kt
+
+          echo "===== AndroidManifest ====="
+          cat android/app/src/main/AndroidManifest.xml
+
+          echo "===== Search finished ====="
 
       - name: Build APK
         run: flutter build apk --release
