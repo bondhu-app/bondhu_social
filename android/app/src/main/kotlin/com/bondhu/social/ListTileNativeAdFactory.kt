@@ -1,7 +1,8 @@
 package com.bondhu.social
 
+import android.content.Context
 import android.graphics.Color
-import android.view.LayoutInflater
+import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -11,21 +12,17 @@ import com.google.android.gms.ads.nativead.NativeAdView
 import io.flutter.plugins.googlemobileads.GoogleMobileAdsPlugin
 
 class ListTileNativeAdFactory(
-    private val inflater: LayoutInflater
+    private val context: Context
 ) : GoogleMobileAdsPlugin.NativeAdFactory {
 
     override fun createNativeAd(
-        nativeAd: NativeAd?,
+        nativeAd: NativeAd,
         customOptions: MutableMap<String, Any>?
     ): NativeAdView {
 
-        val adView = NativeAdView(
-            inflater.context
-        )
+        val adView = NativeAdView(context)
 
-        val container = LinearLayout(
-            inflater.context
-        )
+        val container = LinearLayout(context)
 
         container.orientation =
             LinearLayout.VERTICAL
@@ -41,13 +38,11 @@ class ListTileNativeAdFactory(
             Color.WHITE
         )
 
-        // --------------------------------------------------------
+        // ========================================================
         // HEADLINE
-        // --------------------------------------------------------
+        // ========================================================
 
-        val headlineView = TextView(
-            inflater.context
-        )
+        val headlineView = TextView(context)
 
         headlineView.textSize = 17f
 
@@ -63,23 +58,21 @@ class ListTileNativeAdFactory(
         )
 
         headlineView.text =
-            nativeAd?.headline ?: "Sponsored"
+            nativeAd.headline ?: "Sponsored"
 
         container.addView(
             headlineView,
             LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
             )
         )
 
-        // --------------------------------------------------------
+        // ========================================================
         // BODY
-        // --------------------------------------------------------
+        // ========================================================
 
-        val bodyView = TextView(
-            inflater.context
-        )
+        val bodyView = TextView(context)
 
         bodyView.textSize = 14f
 
@@ -95,27 +88,27 @@ class ListTileNativeAdFactory(
         )
 
         bodyView.text =
-            nativeAd?.body ?: "Sponsored content"
+            nativeAd.body ?: "Sponsored content"
 
         container.addView(
             bodyView,
             LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
             )
         )
 
-        // --------------------------------------------------------
-        // ADD VIEW
-        // --------------------------------------------------------
+        // ========================================================
+        // ADD CONTAINER
+        // ========================================================
 
         adView.addView(
             container
         )
 
-        // --------------------------------------------------------
+        // ========================================================
         // REGISTER AD ASSETS
-        // --------------------------------------------------------
+        // ========================================================
 
         adView.headlineView =
             headlineView
@@ -123,9 +116,9 @@ class ListTileNativeAdFactory(
         adView.bodyView =
             bodyView
 
-        // --------------------------------------------------------
+        // ========================================================
         // SET NATIVE AD
-        // --------------------------------------------------------
+        // ========================================================
 
         adView.setNativeAd(
             nativeAd
