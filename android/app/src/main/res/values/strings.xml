@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">বন্ধু সোশ্যাল</string>
-
-    <!-- AdMob App ID -->
-    <string name="admob_app_id">ca-app-pub-9879411172250653~YOUR_APP_ID</string>
-</resources>
