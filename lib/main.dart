@@ -2,19 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'firebase_options.dart';
-import 'services/ad_service.dart';
-
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
 
 Future<void> main() async {
-  // ============================================================
-  // FLUTTER INITIALIZE
-  // ============================================================
-
   WidgetsFlutterBinding.ensureInitialized();
 
   // ============================================================
@@ -26,43 +21,55 @@ Future<void> main() async {
   );
 
   // ============================================================
-  // ADMOB INITIALIZE
+  // GOOGLE MOBILE ADS INITIALIZE
   // ============================================================
 
-  await AdService.initialize();
+  await MobileAds.instance.initialize();
 
   // ============================================================
-  // START APP
+  // RUN APP
   // ============================================================
 
-  runApp(
-    const BondhuSocialApp(),
-  );
+  runApp(const BondhuSocialApp());
 }
 
 // ================================================================
-// BONDHU SOCIAL APP
+// ADMOB IDS
+// ================================================================
+//
+// Banner
+// ca-app-pub-9879411172250653/9787792421
+//
+// App Open
+// ca-app-pub-9879411172250653/2660111440
+//
+// Interstitial
+// ca-app-pub-9879411172250653/2152166362
+//
+// Rewarded
+// ca-app-pub-9879411172250653/1960594674
+//
+// Rewarded
+// ca-app-pub-9879411172250653/1769022980
+//
+// Native Advanced
+// ca-app-pub-9879411172250653/6507128160
+//
+// ================================================================
+
+// ================================================================
+// APP
 // ================================================================
 
 class BondhuSocialApp extends StatelessWidget {
-  const BondhuSocialApp({
-    super.key,
-  });
+  const BondhuSocialApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      // ----------------------------------------------------------
-      // APP SETTINGS
-      // ----------------------------------------------------------
-
       debugShowCheckedModeBanner: false,
 
       title: 'বন্ধু সোশ্যাল',
-
-      // ----------------------------------------------------------
-      // THEME
-      // ----------------------------------------------------------
 
       theme: ThemeData(
         useMaterial3: true,
@@ -79,21 +86,7 @@ class BondhuSocialApp extends StatelessWidget {
           foregroundColor: Colors.black,
           elevation: 0,
         ),
-
-        cardTheme: const CardThemeData(
-          elevation: 2,
-          margin: EdgeInsets.zero,
-        ),
-
-        inputDecorationTheme:
-            const InputDecorationTheme(
-          border: OutlineInputBorder(),
-        ),
       ),
-
-      // ----------------------------------------------------------
-      // AUTH GATE
-      // ----------------------------------------------------------
 
       home: const AuthGate(),
     );
@@ -105,9 +98,7 @@ class BondhuSocialApp extends StatelessWidget {
 // ================================================================
 
 class AuthGate extends StatelessWidget {
-  const AuthGate({
-    super.key,
-  });
+  const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -120,7 +111,7 @@ class AuthGate extends StatelessWidget {
         snapshot,
       ) {
         // --------------------------------------------------------
-        // CHECKING LOGIN
+        // AUTH LOADING
         // --------------------------------------------------------
 
         if (snapshot.connectionState ==
@@ -129,14 +120,10 @@ class AuthGate extends StatelessWidget {
         }
 
         // --------------------------------------------------------
-        // CURRENT USER
+        // USER NOT LOGGED IN
         // --------------------------------------------------------
 
         final user = snapshot.data;
-
-        // --------------------------------------------------------
-        // USER NOT LOGGED IN
-        // --------------------------------------------------------
 
         if (user == null) {
           return const LoginScreen();
@@ -157,9 +144,7 @@ class AuthGate extends StatelessWidget {
 // ================================================================
 
 class UserRoleGate extends StatelessWidget {
-  const UserRoleGate({
-    super.key,
-  });
+  const UserRoleGate({super.key});
 
   // ============================================================
   // ADMIN EMAIL
@@ -176,16 +161,12 @@ class UserRoleGate extends StatelessWidget {
     final user =
         FirebaseAuth.instance.currentUser;
 
-    // ----------------------------------------------------------
-    // NO USER
-    // ----------------------------------------------------------
-
     if (user == null) {
       return false;
     }
 
     // ----------------------------------------------------------
-    // ADMIN EMAIL CHECK
+    // FIRST: ADMIN EMAIL CHECK
     // ----------------------------------------------------------
 
     final email =
@@ -199,7 +180,7 @@ class UserRoleGate extends StatelessWidget {
     }
 
     // ----------------------------------------------------------
-    // FIRESTORE ROLE CHECK
+    // SECOND: FIRESTORE ROLE CHECK
     // ----------------------------------------------------------
 
     try {
@@ -209,34 +190,18 @@ class UserRoleGate extends StatelessWidget {
               .doc(user.uid)
               .get();
 
-      // --------------------------------------------------------
-      // USER DOCUMENT NOT FOUND
-      // --------------------------------------------------------
-
       if (!document.exists) {
         return false;
       }
 
-      // --------------------------------------------------------
-      // USER DATA
-      // --------------------------------------------------------
-
       final data =
           document.data();
-
-      // --------------------------------------------------------
-      // USER ROLE
-      // --------------------------------------------------------
 
       final role =
           data?['role']
               ?.toString()
               .trim()
               .toLowerCase();
-
-      // --------------------------------------------------------
-      // ADMIN ROLE
-      // --------------------------------------------------------
 
       return role == 'admin';
     } catch (_) {
@@ -258,7 +223,7 @@ class UserRoleGate extends StatelessWidget {
         snapshot,
       ) {
         // --------------------------------------------------------
-        // CHECKING ADMIN
+        // CHECKING ROLE
         // --------------------------------------------------------
 
         if (snapshot.connectionState ==
@@ -289,9 +254,7 @@ class UserRoleGate extends StatelessWidget {
 // ================================================================
 
 class SplashScreen extends StatelessWidget {
-  const SplashScreen({
-    super.key,
-  });
+  const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
