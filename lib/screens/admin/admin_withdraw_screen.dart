@@ -14,30 +14,10 @@ class _AdminWithdrawScreenState
   final FirebaseFirestore _firestore =
       FirebaseFirestore.instance;
 
-  String _selectedStatus = 'pending';
+  String _filter = 'pending';
+  String _search = '';
+
   bool _processing = false;
-
-  // ============================================================
-  // COLLECTION
-  // ============================================================
-
-  CollectionReference<Map<String, dynamic>>
-      get _withdrawRequests =>
-          _firestore.collection('withdraw_requests');
-
-  CollectionReference<Map<String, dynamic>>
-      get _users =>
-          _firestore.collection('users');
-
-  CollectionReference<Map<String, dynamic>>
-      get _transactions =>
-          _firestore.collection('transactions');
-
-  DocumentReference<Map<String, dynamic>>
-      get _ownerWallet =>
-          _firestore
-              .collection('settings')
-              .doc('owner_wallet');
 
   // ============================================================
   // MONEY
@@ -49,10 +29,10 @@ class _AdminWithdrawScreenState
     }
 
     if (value is String) {
-      return double.tryParse(value) ?? 0.0;
+      return double.tryParse(value) ?? 0;
     }
 
-    return 0.0;
+    return 0;
   }
 
   String _money(dynamic value) {
@@ -60,53 +40,52 @@ class _AdminWithdrawScreenState
   }
 
   // ============================================================
+  // WITHDRAW STREAM
+  // ============================================================
+
+  Stream<QuerySnapshot<Map<String, dynamic>>>
+      _withdrawStream() {
+    return _firestore
+        .collection('withdraw_requests')
+        .orderBy(
+          'createdAt',
+          descending: true,
+        )
+        .snapshots();
+  }
+
+  // ============================================================
+  // USERS
+  // ============================================================
+
+  Future<
+      DocumentSnapshot<Map<String, dynamic>>>
+      _getUser(
+    String userId,
+  ) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .get();
+  }
+
+  // ============================================================
   // STATUS
   // ============================================================
 
-  String _statusText(String status) {
-    switch (status) {
-      case 'pending':
-        return 'Pending';
-
-      case 'approved':
-        return 'Approved';
-
-      case 'rejected':
-        return 'Rejected';
-
-      case 'cancelled':
-        return 'Cancelled';
-
-      default:
-        return status;
-    }
-  }
-
-  IconData _statusIcon(String status) {
-    switch (status) {
-      case 'pending':
-        return Icons.pending_actions;
-
-      case 'approved':
-        return Icons.check_circle;
-
-      case 'rejected':
-        return Icons.cancel;
-
-      case 'cancelled':
-        return Icons.block;
-
-      default:
-        return Icons.info;
-    }
+  String _status(dynamic value) {
+    return value
+            ?.toString()
+            .trim()
+            .toLowerCase() ??
+        'pending';
   }
 
   Color _statusColor(String status) {
     switch (status) {
-      case 'pending':
-        return Colors.orange;
-
       case 'approved':
+      case 'paid':
+      case 'completed':
         return Colors.green;
 
       case 'rejected':
@@ -116,26 +95,578 @@ class _AdminWithdrawScreenState
         return Colors.grey;
 
       default:
-        return Colors.blue;
+        return Colors.orange;
+    }
+  }
+
+  String _statusText(String status) {
+    switch (status) {
+      case 'approved':
+        return 'Approved';
+
+      case 'paid':
+        return 'Paid';
+
+      case 'completed':
+        return 'Completed';
+
+      case 'rejected':
+        return 'Rejected';
+
+      case 'cancelled':
+        return 'Cancelled';
+
+      default:
+        return 'Pending';
     }
   }
 
   // ============================================================
-  // REQUEST STREAM
+  // APPROVE
   // ============================================================
 
-  Stream<QuerySnapshot<Map<String, dynamic>>>
-      _withdrawStream() {
-    return _withdrawRequests
-        .where(
-          'status',
-          isEqualTo: _selectedStatus,
-        )
-        .orderBy(
-          'createdAt',
-          descending: true,
-        )
-        .snapshots();
+  Future<void> _approveRequest(
+    DocumentSnapshot<Map<String, dynamic>>
+        request,
+  ) async {
+    if (_processing) {
+      return;
+    }
+
+    final data = request.data() ?? {};
+
+    final userId =
+        data['userId']?.toString() ?? '';
+
+    final amount =
+        _toDouble(data['amount']);
+
+    if (userId.isEmpty) {
+      _showMessage(
+        'User ID পাওয়া যায়নি।',
+      );
+      return;
+    }
+
+    if (amount <= 0) {
+      _showMessage(
+        'Withdraw amount সঠিক নয়।',
+      );
+      return;
+    }
+
+    final confirm =
+        await _confirmAction(
+      title: 'Approve Withdraw',
+      message:
+          'আপনি কি ${_money(amount)} Withdraw Request Approve করতে চান?',
+      confirmText: 'Approve',
+    );
+
+    if (confirm != true) {
+      return;
+    }
+
+    setState(() {
+      _processing = true;
+    });
+
+    try {
+      final requestRef =
+          _firestore
+              .collection('withdraw_requests')
+              .doc(request.id);
+
+      final userRef =
+          _firestore
+              .collection('users')
+              .doc(userId);
+
+      final walletRef =
+          _firestore
+              .collection('settings')
+              .doc('owner_wallet');
+
+      await _firestore.runTransaction(
+        (transaction) async {
+          final requestSnap =
+              await transaction.get(
+            requestRef,
+          );
+
+          final userSnap =
+              await transaction.get(
+            userRef,
+          );
+
+          final walletSnap =
+              await transaction.get(
+            walletRef,
+          );
+
+          final requestData =
+              requestSnap.data();
+
+          if (requestData == null) {
+            throw Exception(
+              'Withdraw request পাওয়া যায়নি।',
+            );
+          }
+
+          final currentStatus =
+              _status(
+            requestData['status'],
+          );
+
+          if (currentStatus != 'pending') {
+            throw Exception(
+              'এই request ইতিমধ্যে process করা হয়েছে।',
+            );
+          }
+
+          final userData =
+              userSnap.data();
+
+          if (userData == null) {
+            throw Exception(
+              'User পাওয়া যায়নি।',
+            );
+          }
+
+          final currentWallet =
+              _toDouble(
+            userData['wallet'],
+          );
+
+          if (currentWallet < amount) {
+            throw Exception(
+              'User Wallet-এ পর্যাপ্ত balance নেই।',
+            );
+          }
+
+          final walletData =
+              walletSnap.data() ?? {};
+
+          final ownerBalance =
+              _toDouble(
+            walletData['balance'],
+          );
+
+          final totalPaid =
+              _toDouble(
+            walletData[
+                'totalPaidToUsers'],
+          );
+
+          transaction.update(
+            userRef,
+            {
+              'wallet':
+                  currentWallet - amount,
+              'updatedAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
+
+          transaction.update(
+            requestRef,
+            {
+              'status': 'approved',
+              'processedAt':
+                  FieldValue.serverTimestamp(),
+              'approvedAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
+
+          transaction.set(
+            walletRef,
+            {
+              'balance':
+                  ownerBalance - amount,
+              'totalPaidToUsers':
+                  totalPaid + amount,
+              'updatedAt':
+                  FieldValue.serverTimestamp(),
+            },
+            SetOptions(
+              merge: true,
+            ),
+          );
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        'Withdraw সফলভাবে Approve হয়েছে।',
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        'Approve করতে সমস্যা হয়েছে: $e',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processing = false;
+        });
+      }
+    }
+  }
+
+  // ============================================================
+  // REJECT
+  // ============================================================
+
+  Future<void> _rejectRequest(
+    DocumentSnapshot<Map<String, dynamic>>
+        request,
+  ) async {
+    if (_processing) {
+      return;
+    }
+
+    final data = request.data() ?? {};
+
+    final userId =
+        data['userId']?.toString() ?? '';
+
+    final amount =
+        _toDouble(data['amount']);
+
+    final reasonController =
+        TextEditingController();
+
+    final result =
+        await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(
+                Icons.cancel_outlined,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Reject Withdraw',
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize:
+                MainAxisSize.min,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Amount: ${_money(amount)}',
+              ),
+
+              const SizedBox(height: 15),
+
+              TextField(
+                controller:
+                    reasonController,
+                maxLines: 3,
+                decoration:
+                    const InputDecoration(
+                  labelText:
+                      'Reject করার কারণ',
+                  hintText:
+                      'কারণ লিখুন...',
+                  border:
+                      OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                );
+              },
+              child: const Text(
+                'Cancel',
+              ),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  reasonController
+                      .text
+                      .trim(),
+                );
+              },
+              child: const Text(
+                'Reject',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    reasonController.dispose();
+
+    if (result == null) {
+      return;
+    }
+
+    final reason =
+        result.isEmpty
+            ? 'Admin দ্বারা Withdraw Reject করা হয়েছে।'
+            : result;
+
+    if (userId.isEmpty) {
+      _showMessage(
+        'User ID পাওয়া যায়নি।',
+      );
+      return;
+    }
+
+    final confirm =
+        await _confirmAction(
+      title: 'Confirm Reject',
+      message:
+          'আপনি কি এই Withdraw Request Reject করতে চান?',
+      confirmText: 'Reject',
+    );
+
+    if (confirm != true) {
+      return;
+    }
+
+    setState(() {
+      _processing = true;
+    });
+
+    try {
+      final requestRef =
+          _firestore
+              .collection('withdraw_requests')
+              .doc(request.id);
+
+      final userRef =
+          _firestore
+              .collection('users')
+              .doc(userId);
+
+      await _firestore.runTransaction(
+        (transaction) async {
+          final requestSnap =
+              await transaction.get(
+            requestRef,
+          );
+
+          final userSnap =
+              await transaction.get(
+            userRef,
+          );
+
+          final requestData =
+              requestSnap.data();
+
+          if (requestData == null) {
+            throw Exception(
+              'Withdraw request পাওয়া যায়নি।',
+            );
+          }
+
+          final currentStatus =
+              _status(
+            requestData['status'],
+          );
+
+          if (currentStatus != 'pending') {
+            throw Exception(
+              'এই request ইতিমধ্যে process করা হয়েছে।',
+            );
+          }
+
+          final userData =
+              userSnap.data();
+
+          if (userData == null) {
+            throw Exception(
+              'User পাওয়া যায়নি।',
+            );
+          }
+
+          transaction.update(
+            requestRef,
+            {
+              'status': 'rejected',
+              'rejectReason':
+                  reason,
+              'processedAt':
+                  FieldValue.serverTimestamp(),
+              'rejectedAt':
+                  FieldValue.serverTimestamp(),
+            },
+          );
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        'Withdraw Reject করা হয়েছে।',
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        'Reject করতে সমস্যা হয়েছে: $e',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processing = false;
+        });
+      }
+    }
+  }
+
+  // ============================================================
+  // CONFIRM DIALOG
+  // ============================================================
+
+  Future<bool?> _confirmAction({
+    required String title,
+    required String message,
+    required String confirmText,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child: const Text(
+                'Cancel',
+              ),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              child: Text(
+                confirmText,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // DELETE REQUEST
+  // ============================================================
+
+  Future<void> _deleteRequest(
+    DocumentSnapshot<Map<String, dynamic>>
+        request,
+  ) async {
+    if (_processing) {
+      return;
+    }
+
+    final status =
+        _status(
+      request.data()?['status'],
+    );
+
+    if (status == 'pending') {
+      _showMessage(
+        'Pending request Delete করা যাবে না।',
+      );
+      return;
+    }
+
+    final confirm =
+        await _confirmAction(
+      title: 'Delete Request',
+      message:
+          'এই Withdraw Request মুছে ফেলতে চান?',
+      confirmText: 'Delete',
+    );
+
+    if (confirm != true) {
+      return;
+    }
+
+    setState(() {
+      _processing = true;
+    });
+
+    try {
+      await request.reference.delete();
+
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        'Request Delete হয়েছে।',
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(
+        'Delete করতে সমস্যা হয়েছে: $e',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processing = false;
+        });
+      }
+    }
+  }
+
+  // ============================================================
+  // MESSAGE
+  // ============================================================
+
+  void _showMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
   }
 
   // ============================================================
@@ -150,185 +681,501 @@ class _AdminWithdrawScreenState
 
       appBar: AppBar(
         title: const Text(
-          'Manage Withdrawals',
+          'Withdraw Management',
           style: TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight:
+                FontWeight.bold,
           ),
         ),
         centerTitle: true,
       ),
 
-      body: Column(
+      body: Stack(
         children: [
-          // ======================================================
-          // STATUS FILTER
-          // ======================================================
+          StreamBuilder<
+              QuerySnapshot<
+                  Map<String, dynamic>>>(
+            stream: _withdrawStream(),
+            builder: (
+              context,
+              snapshot,
+            ) {
+              if (snapshot.connectionState ==
+                  ConnectionState.waiting) {
+                return const Center(
+                  child:
+                      CircularProgressIndicator(),
+                );
+              }
 
-          Padding(
-            padding:
-                const EdgeInsets.fromLTRB(
-              16,
-              16,
-              16,
-              8,
-            ),
-            child: Card(
-              child: Padding(
-                padding:
-                    const EdgeInsets.all(12),
-                child: DropdownButtonFormField<
-                    String>(
-                  initialValue:
-                      _selectedStatus,
-
-                  decoration:
-                      const InputDecoration(
-                    labelText:
-                        'Withdraw Status',
-                    prefixIcon:
-                        Icon(
-                      Icons.filter_alt,
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.all(
+                      20,
                     ),
-                    border:
-                        OutlineInputBorder(),
+                    child: Text(
+                      'Withdraw Load Error:\n${snapshot.error}',
+                      textAlign:
+                          TextAlign.center,
+                    ),
                   ),
+                );
+              }
 
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'pending',
-                      child: Text(
-                        'Pending',
+              final allRequests =
+                  snapshot.data?.docs ??
+                      [];
+
+              final filtered =
+                  allRequests.where(
+                (document) {
+                  final data =
+                      document.data();
+
+                  final status =
+                      _status(
+                    data['status'],
+                  );
+
+                  final userName =
+                      data['userName']
+                              ?.toString()
+                              .toLowerCase() ??
+                          '';
+
+                  final email =
+                      data['email']
+                              ?.toString()
+                              .toLowerCase() ??
+                          '';
+
+                  final userId =
+                      data['userId']
+                              ?.toString()
+                              .toLowerCase() ??
+                          '';
+
+                  final search =
+                      _search
+                          .trim()
+                          .toLowerCase();
+
+                  final statusMatch =
+                      _filter == 'all' ||
+                          status == _filter;
+
+                  final searchMatch =
+                      search.isEmpty ||
+                          userName.contains(
+                            search,
+                          ) ||
+                          email.contains(
+                            search,
+                          ) ||
+                          userId.contains(
+                            search,
+                          );
+
+                  return statusMatch &&
+                      searchMatch;
+                },
+              ).toList();
+
+              int pending = 0;
+              int approved = 0;
+              int rejected = 0;
+
+              double pendingAmount = 0;
+              double approvedAmount = 0;
+
+              for (final document
+                  in allRequests) {
+                final data =
+                    document.data();
+
+                final status =
+                    _status(
+                  data['status'],
+                );
+
+                final amount =
+                    _toDouble(
+                  data['amount'],
+                );
+
+                if (status == 'pending') {
+                  pending++;
+                  pendingAmount += amount;
+                } else if (status ==
+                        'approved' ||
+                    status == 'paid' ||
+                    status ==
+                        'completed') {
+                  approved++;
+                  approvedAmount += amount;
+                } else if (status ==
+                    'rejected') {
+                  rejected++;
+                }
+              }
+
+              return RefreshIndicator(
+                onRefresh: () async {
+                  await Future<void>.delayed(
+                    const Duration(
+                      milliseconds: 500,
+                    ),
+                  );
+                },
+                child: ListView(
+                  physics:
+                      const AlwaysScrollableScrollPhysics(),
+                  padding:
+                      const EdgeInsets.all(
+                    16,
+                  ),
+                  children: [
+                    // ==================================================
+                    // SUMMARY
+                    // ==================================================
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child:
+                              _summaryCard(
+                            title: 'Pending',
+                            value:
+                                '$pending',
+                            amount:
+                                pendingAmount,
+                            icon:
+                                Icons
+                                    .pending_actions,
+                          ),
+                        ),
+
+                        const SizedBox(
+                          width: 8,
+                        ),
+
+                        Expanded(
+                          child:
+                              _summaryCard(
+                            title:
+                                'Approved',
+                            value:
+                                '$approved',
+                            amount:
+                                approvedAmount,
+                            icon:
+                                Icons
+                                    .check_circle,
+                          ),
+                        ),
+
+                        const SizedBox(
+                          width: 8,
+                        ),
+
+                        Expanded(
+                          child:
+                              _summaryCard(
+                            title:
+                                'Rejected',
+                            value:
+                                '$rejected',
+                            amount: null,
+                            icon:
+                                Icons.cancel,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(
+                      height: 15,
+                    ),
+
+                    // ==================================================
+                    // SEARCH
+                    // ==================================================
+
+                    TextField(
+                      decoration:
+                          const InputDecoration(
+                        hintText:
+                            'User, Email অথবা User ID Search করুন...',
+                        prefixIcon:
+                            Icon(
+                          Icons.search,
+                        ),
+                        border:
+                            OutlineInputBorder(),
+                        filled: true,
+                        fillColor:
+                            Colors.white,
+                      ),
+                      onChanged:
+                          (value) {
+                        setState(() {
+                          _search =
+                              value;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(
+                      height: 12,
+                    ),
+
+                    // ==================================================
+                    // FILTER
+                    // ==================================================
+
+                    SingleChildScrollView(
+                      scrollDirection:
+                          Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _filterButton(
+                            'pending',
+                            'Pending',
+                            Icons
+                                .pending_actions,
+                          ),
+                          _filterButton(
+                            'approved',
+                            'Approved',
+                            Icons
+                                .check_circle,
+                          ),
+                          _filterButton(
+                            'rejected',
+                            'Rejected',
+                            Icons.cancel,
+                          ),
+                          _filterButton(
+                            'all',
+                            'All',
+                            Icons.list,
+                          ),
+                        ],
                       ),
                     ),
-                    DropdownMenuItem(
-                      value: 'approved',
-                      child: Text(
-                        'Approved',
+
+                    const SizedBox(
+                      height: 15,
+                    ),
+
+                    // ==================================================
+                    // LIST
+                    // ==================================================
+
+                    if (filtered.isEmpty)
+                      Card(
+                        child: Padding(
+                          padding:
+                              const EdgeInsets
+                                  .all(
+                            30,
+                          ),
+                          child: Column(
+                            children: [
+                              const Icon(
+                                Icons
+                                    .inbox_outlined,
+                                size: 50,
+                              ),
+                              const SizedBox(
+                                height: 10,
+                              ),
+                              const Text(
+                                'কোনো Withdraw Request পাওয়া যায়নি।',
+                                textAlign:
+                                    TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                    ...filtered.map(
+                      (
+                        document,
+                      ) =>
+                          _withdrawItem(
+                        document,
                       ),
                     ),
-                    DropdownMenuItem(
-                      value: 'rejected',
-                      child: Text(
-                        'Rejected',
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'cancelled',
-                      child: Text(
-                        'Cancelled',
-                      ),
+
+                    const SizedBox(
+                      height: 30,
                     ),
                   ],
+                ),
+              );
+            },
+          ),
 
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
+          // ==========================================================
+          // PROCESSING
+          // ==========================================================
 
-                    setState(() {
-                      _selectedStatus =
-                          value;
-                    });
-                  },
+          if (_processing)
+            Container(
+              color: Colors.black26,
+              child: const Center(
+                child: Card(
+                  child: Padding(
+                    padding:
+                        EdgeInsets.all(25),
+                    child: Column(
+                      mainAxisSize:
+                          MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 15),
+                        Text(
+                          'Processing...',
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-
-          // ======================================================
-          // REQUEST LIST
-          // ======================================================
-
-          Expanded(
-            child: StreamBuilder<
-                QuerySnapshot<
-                    Map<String, dynamic>>>(
-              stream: _withdrawStream(),
-
-              builder: (
-                context,
-                snapshot,
-              ) {
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Center(
-                    child:
-                        CircularProgressIndicator(),
-                  );
-                }
-
-                if (snapshot.hasError) {
-                  return _errorView(
-                    snapshot.error
-                        .toString(),
-                  );
-                }
-
-                final documents =
-                    snapshot.data?.docs ??
-                        [];
-
-                if (documents.isEmpty) {
-                  return _emptyView();
-                }
-
-                return RefreshIndicator(
-                  onRefresh: () async {
-                    setState(() {});
-                    await Future<void>.delayed(
-                      const Duration(
-                        milliseconds: 300,
-                      ),
-                    );
-                  },
-
-                  child: ListView.builder(
-                    padding:
-                        const EdgeInsets.fromLTRB(
-                      16,
-                      8,
-                      16,
-                      30,
-                    ),
-
-                    itemCount:
-                        documents.length,
-
-                    itemBuilder:
-                        (
-                      context,
-                      index,
-                    ) {
-                      return _withdrawCard(
-                        documents[index],
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
         ],
       ),
     );
   }
 
   // ============================================================
-  // WITHDRAW CARD
+  // SUMMARY CARD
   // ============================================================
 
-  Widget _withdrawCard(
+  Widget _summaryCard({
+    required String title,
+    required String value,
+    required double? amount,
+    required IconData icon,
+  }) {
+    return Card(
+      child: Padding(
+        padding:
+            const EdgeInsets.symmetric(
+          vertical: 14,
+          horizontal: 6,
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 24,
+            ),
+
+            const SizedBox(
+              height: 5,
+            ),
+
+            Text(
+              title,
+              textAlign:
+                  TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(
+              height: 4,
+            ),
+
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+
+            if (amount != null)
+              Text(
+                _money(amount),
+                textAlign:
+                    TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10,
+                  color:
+                      Colors.grey.shade700,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // FILTER BUTTON
+  // ============================================================
+
+  Widget _filterButton(
+    String value,
+    String title,
+    IconData icon,
+  ) {
+    final selected =
+        _filter == value;
+
+    return Padding(
+      padding:
+          const EdgeInsets.only(
+        right: 8,
+      ),
+      child: FilterChip(
+        selected: selected,
+        avatar: Icon(
+          icon,
+          size: 18,
+        ),
+        label: Text(title),
+        onSelected: (_) {
+          setState(() {
+            _filter = value;
+          });
+        },
+      ),
+    );
+  }
+
+  // ============================================================
+  // WITHDRAW ITEM
+  // ============================================================
+
+  Widget _withdrawItem(
     DocumentSnapshot<
         Map<String, dynamic>> document,
   ) {
     final data =
         document.data() ?? {};
 
-    final requestId =
-        document.id;
-
     final userId =
         data['userId']?.toString() ??
+            '';
+
+    final userName =
+        data['userName']?.toString() ??
+            data['name']?.toString() ??
+            'Unknown User';
+
+    final email =
+        data['email']?.toString() ??
             '';
 
     final amount =
@@ -338,54 +1185,56 @@ class _AdminWithdrawScreenState
 
     final method =
         data['method']?.toString() ??
-            'Unknown';
+            data['paymentMethod']
+                ?.toString() ??
+            'Payment Method নেই';
 
     final account =
-        data['account']?.toString() ??
+        data['accountNumber']
+                ?.toString() ??
+            data['account']
+                ?.toString() ??
             '';
 
     final status =
-        data['status']?.toString() ??
-            'pending';
+        _status(
+      data['status'],
+    );
 
     final reason =
-        data['reason']?.toString() ??
+        data['rejectReason']
+                ?.toString() ??
             '';
 
-    final createdAt =
-        data['createdAt'];
+    final statusColor =
+        _statusColor(status);
 
     return Card(
       margin:
           const EdgeInsets.only(
-        bottom: 12,
+        bottom: 10,
       ),
-
-      elevation: 2,
-
       child: Padding(
         padding:
-            const EdgeInsets.all(16),
-
+            const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
-
           children: [
             // ==================================================
-            // HEADER
+            // USER
             // ==================================================
 
             Row(
               children: [
-                CircleAvatar(
+                const CircleAvatar(
                   child: Icon(
-                    _statusIcon(status),
+                    Icons.person,
                   ),
                 ),
 
                 const SizedBox(
-                  width: 12,
+                  width: 10,
                 ),
 
                 Expanded(
@@ -393,71 +1242,112 @@ class _AdminWithdrawScreenState
                     crossAxisAlignment:
                         CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Withdraw Request',
+                      Text(
+                        userName,
                         style:
-                            TextStyle(
-                          fontSize: 17,
+                            const TextStyle(
+                          fontSize: 16,
                           fontWeight:
                               FontWeight.bold,
                         ),
                       ),
 
-                      const SizedBox(
-                        height: 3,
-                      ),
-
-                      Text(
-                        'ID: $requestId',
-                        maxLines: 1,
-                        overflow:
-                            TextOverflow.ellipsis,
-                        style:
-                            TextStyle(
-                          fontSize: 11,
-                          color:
-                              Colors.grey.shade600,
+                      if (email.isNotEmpty)
+                        Text(
+                          email,
+                          maxLines: 1,
+                          overflow:
+                              TextOverflow
+                                  .ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors
+                                .grey
+                                .shade700,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
 
-                _statusBadge(
-                  status,
+                Container(
+                  padding:
+                      const EdgeInsets
+                          .symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color: statusColor
+                        .withValues(
+                      alpha: 0.12,
+                    ),
+                    borderRadius:
+                        BorderRadius.circular(
+                      20,
+                    ),
+                  ),
+                  child: Text(
+                    _statusText(status),
+                    style: TextStyle(
+                      color:
+                          statusColor,
+                      fontSize: 11,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             ),
 
-            const Divider(
-              height: 25,
+            const SizedBox(
+              height: 12,
             ),
 
             // ==================================================
             // AMOUNT
             // ==================================================
 
-            Center(
-              child: Column(
+            Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.all(
+                12,
+              ),
+              decoration:
+                  BoxDecoration(
+                borderRadius:
+                    BorderRadius.circular(
+                  10,
+                ),
+                color: Colors.grey
+                    .withValues(
+                  alpha: 0.08,
+                ),
+              ),
+              child: Row(
                 children: [
-                  Text(
-                    'Withdraw Amount',
-                    style:
-                        TextStyle(
-                      color:
-                          Colors.grey.shade700,
-                    ),
+                  const Icon(
+                    Icons.payments,
                   ),
 
                   const SizedBox(
-                    height: 4,
+                    width: 10,
                   ),
+
+                  const Text(
+                    'Amount',
+                  ),
+
+                  const Spacer(),
 
                   Text(
                     _money(amount),
                     style:
                         const TextStyle(
-                      fontSize: 28,
+                      fontSize: 19,
                       fontWeight:
                           FontWeight.bold,
                     ),
@@ -467,96 +1357,67 @@ class _AdminWithdrawScreenState
             ),
 
             const SizedBox(
-              height: 18,
+              height: 10,
             ),
 
             // ==================================================
-            // USER INFORMATION
+            // PAYMENT INFO
             // ==================================================
 
             _infoRow(
-              icon: Icons.person,
-              title: 'User ID',
-              value: userId.isEmpty
-                  ? 'পাওয়া যায়নি'
-                  : userId,
+              Icons.payment,
+              'Method',
+              method,
             ),
 
-            const SizedBox(
-              height: 8,
-            ),
-
-            _infoRow(
-              icon:
-                  Icons.account_balance_wallet,
-              title: 'Payment Method',
-              value: method,
-            ),
-
-            const SizedBox(
-              height: 8,
-            ),
-
-            _infoRow(
-              icon: Icons.phone,
-              title: 'Payment Account',
-              value: account.isEmpty
-                  ? 'পাওয়া যায়নি'
-                  : account,
-            ),
-
-            const SizedBox(
-              height: 8,
-            ),
-
-            _infoRow(
-              icon: Icons.access_time,
-              title: 'Created',
-              value:
-                  _formatTimestamp(
-                createdAt,
-              ),
-            ),
-
-            if (reason.isNotEmpty) ...[
-              const SizedBox(
-                height: 8,
-              ),
-
+            if (account.isNotEmpty)
               _infoRow(
-                icon:
-                    Icons.info_outline,
-                title: 'Reason',
-                value: reason,
-              ),
-            ],
-
-            // ==================================================
-            // ADMIN ACTIONS
-            // ==================================================
-
-            if (status == 'pending') ...[
-              const SizedBox(
-                height: 18,
+                Icons.account_box,
+                'Account',
+                account,
               ),
 
+            if (userId.isNotEmpty)
+              _infoRow(
+                Icons.fingerprint,
+                'User ID',
+                userId,
+              ),
+
+            if (reason.isNotEmpty &&
+                status == 'rejected')
+              _infoRow(
+                Icons.info_outline,
+                'Reject Reason',
+                reason,
+              ),
+
+            const SizedBox(
+              height: 12,
+            ),
+
+            // ==================================================
+            // ACTIONS
+            // ==================================================
+
+            if (status == 'pending')
               Row(
                 children: [
                   Expanded(
-                    child:
-                        OutlinedButton.icon(
+                    child: OutlinedButton.icon(
                       onPressed:
                           _processing
                               ? null
-                              : () {
-                                  _showRejectDialog(
+                              : () =>
+                                  _rejectRequest(
                                     document,
-                                  );
-                                },
-                      icon: const Icon(
+                                  ),
+                      icon:
+                          const Icon(
                         Icons.close,
                       ),
-                      label: const Text(
+                      label:
+                          const Text(
                         'Reject',
                       ),
                     ),
@@ -572,62 +1433,55 @@ class _AdminWithdrawScreenState
                       onPressed:
                           _processing
                               ? null
-                              : () {
-                                  _showApproveDialog(
+                              : () =>
+                                  _approveRequest(
                                     document,
-                                  );
-                                },
-                      icon: const Icon(
+                                  ),
+                      icon:
+                          const Icon(
                         Icons.check,
                       ),
-                      label: const Text(
+                      label:
+                          const Text(
                         'Approve',
                       ),
                     ),
                   ),
                 ],
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Request processed',
+                      style: TextStyle(
+                        color: Colors
+                            .grey
+                            .shade700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+
+                  IconButton(
+                    tooltip:
+                        'Delete History',
+                    onPressed:
+                        _processing
+                            ? null
+                            : () =>
+                                _deleteRequest(
+                                  document,
+                                ),
+                    icon:
+                        const Icon(
+                      Icons.delete_outline,
+                    ),
+                  ),
+                ],
               ),
-            ],
           ],
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // STATUS BADGE
-  // ============================================================
-
-  Widget _statusBadge(
-    String status,
-  ) {
-    final color =
-        _statusColor(status);
-
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 6,
-      ),
-      decoration:
-          BoxDecoration(
-        borderRadius:
-            BorderRadius.circular(
-          20,
-        ),
-        border: Border.all(
-          color: color,
-        ),
-      ),
-      child: Text(
-        _statusText(status),
-        style:
-            TextStyle(
-          color: color,
-          fontWeight:
-              FontWeight.bold,
-          fontSize: 12,
         ),
       ),
     );
@@ -637,776 +1491,52 @@ class _AdminWithdrawScreenState
   // INFO ROW
   // ============================================================
 
-  Widget _infoRow({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Row(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
-      children: [
-        Icon(
-          icon,
-          size: 19,
-        ),
-
-        const SizedBox(
-          width: 10,
-        ),
-
-        SizedBox(
-          width: 115,
-          child: Text(
-            title,
-            style:
-                const TextStyle(
-              fontWeight:
-                  FontWeight.w600,
-            ),
-          ),
-        ),
-
-        Expanded(
-          child: Text(
-            value,
-            style:
-                TextStyle(
-              color:
-                  Colors.grey.shade800,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // APPROVE DIALOG
-  // ============================================================
-
-  Future<void>
-      _showApproveDialog(
-    DocumentSnapshot<
-        Map<String, dynamic>> document,
-  ) async {
-    final data =
-        document.data() ?? {};
-
-    final amount =
-        _toDouble(
-      data['amount'],
-    );
-
-    final method =
-        data['method']?.toString() ??
-            '';
-
-    final account =
-        data['account']?.toString() ??
-            '';
-
-    final confirmed =
-        await showDialog<bool>(
-      context: context,
-      builder: (
-        context,
-      ) {
-        return AlertDialog(
-          title: const Text(
-            'Withdraw Approve',
-          ),
-
-          content: Column(
-            mainAxisSize:
-                MainAxisSize.min,
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'আপনি কি এই Withdraw Request approve করতে চান?',
-              ),
-
-              const SizedBox(
-                height: 15,
-              ),
-
-              Text(
-                'Amount: ${_money(amount)}',
-                style:
-                    const TextStyle(
-                  fontWeight:
-                      FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(
-                height: 5,
-              ),
-
-              Text(
-                'Method: $method',
-              ),
-
-              const SizedBox(
-                height: 5,
-              ),
-
-              Text(
-                'Account: $account',
-              ),
-            ],
-          ),
-
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  false,
-                );
-              },
-              child: const Text(
-                'না',
-              ),
-            ),
-
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  true,
-                );
-              },
-              child: const Text(
-                'Approve',
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed == true) {
-      await _approveWithdraw(
-        document,
-      );
-    }
-  }
-
-  // ============================================================
-  // REJECT DIALOG
-  // ============================================================
-
-  Future<void>
-      _showRejectDialog(
-    DocumentSnapshot<
-        Map<String, dynamic>> document,
-  ) async {
-    final controller =
-        TextEditingController();
-
-    final confirmed =
-        await showDialog<bool>(
-      context: context,
-      builder: (
-        context,
-      ) {
-        return AlertDialog(
-          title: const Text(
-            'Withdraw Reject',
-          ),
-
-          content: Column(
-            mainAxisSize:
-                MainAxisSize.min,
-            children: [
-              const Text(
-                'Reject করার কারণ চাইলে নিচে লিখুন।',
-              ),
-
-              const SizedBox(
-                height: 12,
-              ),
-
-              TextField(
-                controller:
-                    controller,
-                maxLines: 3,
-                decoration:
-                    const InputDecoration(
-                  hintText:
-                      'Reject reason...',
-                  border:
-                      OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  false,
-                );
-              },
-              child: const Text(
-                'Cancel',
-              ),
-            ),
-
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(
-                  context,
-                  true,
-                );
-              },
-              child: const Text(
-                'Reject',
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed == true) {
-      await _rejectWithdraw(
-        document,
-        controller.text.trim(),
-      );
-    }
-
-    controller.dispose();
-  }
-
-  // ============================================================
-  // APPROVE WITHDRAW
-  // ============================================================
-
-  Future<void> _approveWithdraw(
-    DocumentSnapshot<
-        Map<String, dynamic>> document,
-  ) async {
-    if (_processing) {
-      return;
-    }
-
-    setState(() {
-      _processing = true;
-    });
-
-    try {
-      final requestRef =
-          _withdrawRequests.doc(
-        document.id,
-      );
-
-      final requestSnapshot =
-          await requestRef.get();
-
-      if (!requestSnapshot.exists) {
-        throw Exception(
-          'Withdraw request পাওয়া যায়নি।',
-        );
-      }
-
-      final requestData =
-          requestSnapshot.data() ?? {};
-
-      final status =
-          requestData['status']
-                  ?.toString() ??
-              '';
-
-      if (status != 'pending') {
-        throw Exception(
-          'এই request আর pending নেই।',
-        );
-      }
-
-      final userId =
-          requestData['userId']
-                  ?.toString() ??
-              '';
-
-      if (userId.isEmpty) {
-        throw Exception(
-          'User ID পাওয়া যায়নি।',
-        );
-      }
-
-      final amount =
-          _toDouble(
-        requestData['amount'],
-      );
-
-      if (amount <= 0) {
-        throw Exception(
-          'Withdraw amount সঠিক নয়।',
-        );
-      }
-
-      final userRef =
-          _users.doc(userId);
-
-      final transactionRef =
-          _transactions.doc();
-
-      final ownerRef =
-          _ownerWallet;
-
-      await _firestore
-          .runTransaction(
-        (transaction) async {
-          final freshRequest =
-              await transaction.get(
-            requestRef,
-          );
-
-          if (!freshRequest.exists) {
-            throw Exception(
-              'Withdraw request পাওয়া যায়নি।',
-            );
-          }
-
-          final freshRequestData =
-              freshRequest.data() ??
-                  {};
-
-          final freshStatus =
-              freshRequestData[
-                        'status']
-                    ?.toString() ??
-                  '';
-
-          if (freshStatus !=
-              'pending') {
-            throw Exception(
-              'এই request ইতিমধ্যে process করা হয়েছে।',
-            );
-          }
-
-          final freshUser =
-              await transaction.get(
-            userRef,
-          );
-
-          if (!freshUser.exists) {
-            throw Exception(
-              'User profile পাওয়া যায়নি।',
-            );
-          }
-
-          final userData =
-              freshUser.data() ??
-                  {};
-
-          final balance =
-              _toDouble(
-            userData['balance'],
-          );
-
-          if (balance < amount) {
-            throw Exception(
-              'User wallet-এ পর্যাপ্ত balance নেই।',
-            );
-          }
-
-          final totalWithdrawn =
-              _toDouble(
-            userData[
-                'totalWithdrawn'],
-          );
-
-          final ownerSnapshot =
-              await transaction.get(
-            ownerRef,
-          );
-
-          final ownerData =
-              ownerSnapshot.data() ??
-                  {};
-
-          final ownerBalance =
-              _toDouble(
-            ownerData['balance'],
-          );
-
-          final totalPaid =
-              _toDouble(
-            ownerData[
-                'totalPaidToUsers'],
-          );
-
-          transaction.update(
-            userRef,
-            {
-              'balance':
-                  balance - amount,
-              'totalWithdrawn':
-                  totalWithdrawn +
-                      amount,
-              'updatedAt':
-                  FieldValue
-                      .serverTimestamp(),
-            },
-          );
-
-          transaction.update(
-            requestRef,
-            {
-              'status':
-                  'approved',
-              'approvedAt':
-                  FieldValue
-                      .serverTimestamp(),
-              'updatedAt':
-                  FieldValue
-                      .serverTimestamp(),
-            },
-          );
-
-          transaction.set(
-            transactionRef,
-            {
-              'userId': userId,
-              'amount': amount,
-              'type': 'withdraw',
-              'description':
-                  'Withdraw approved',
-              'referenceId':
-                  requestRef.id,
-              'status':
-                  'completed',
-              'transactionType':
-                  'withdraw',
-              'method':
-                  freshRequestData[
-                      'method'],
-              'account':
-                  freshRequestData[
-                      'account'],
-              'createdAt':
-                  FieldValue
-                      .serverTimestamp(),
-            },
-          );
-
-          transaction.set(
-            ownerRef,
-            {
-              'balance':
-                  ownerBalance -
-                      amount,
-              'totalPaidToUsers':
-                  totalPaid +
-                      amount,
-              'updatedAt':
-                  FieldValue
-                      .serverTimestamp(),
-            },
-            SetOptions(
-              merge: true,
-            ),
-          );
-        },
-      );
-
-      _showMessage(
-        'Withdraw সফলভাবে approve হয়েছে।',
-      );
-    } catch (e) {
-      _showMessage(
-        _cleanError(e),
-        isError: true,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _processing = false;
-        });
-      }
-    }
-  }
-
-  // ============================================================
-  // REJECT WITHDRAW
-  // ============================================================
-
-  Future<void> _rejectWithdraw(
-    DocumentSnapshot<
-        Map<String, dynamic>> document,
-    String reason,
-  ) async {
-    if (_processing) {
-      return;
-    }
-
-    setState(() {
-      _processing = true;
-    });
-
-    try {
-      final requestRef =
-          _withdrawRequests.doc(
-        document.id,
-      );
-
-      final snapshot =
-          await requestRef.get();
-
-      if (!snapshot.exists) {
-        throw Exception(
-          'Withdraw request পাওয়া যায়নি।',
-        );
-      }
-
-      final data =
-          snapshot.data() ?? {};
-
-      final status =
-          data['status']
-                  ?.toString() ??
-              '';
-
-      if (status != 'pending') {
-        throw Exception(
-          'এই request আর pending নেই।',
-        );
-      }
-
-      await requestRef.update(
-        {
-          'status': 'rejected',
-          'reason': reason.isEmpty
-              ? 'Admin দ্বারা Reject করা হয়েছে।'
-              : reason,
-          'rejectedAt':
-              FieldValue.serverTimestamp(),
-          'updatedAt':
-              FieldValue.serverTimestamp(),
-        },
-      );
-
-      _showMessage(
-        'Withdraw Request Reject হয়েছে।',
-      );
-    } catch (e) {
-      _showMessage(
-        _cleanError(e),
-        isError: true,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _processing = false;
-        });
-      }
-    }
-  }
-
-  // ============================================================
-  // EMPTY VIEW
-  // ============================================================
-
-  Widget _emptyView() {
-    return Center(
-      child: Padding(
-        padding:
-            const EdgeInsets.all(30),
-        child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.inbox_outlined,
-              size: 70,
-              color:
-                  Colors.grey.shade500,
-            ),
-
-            const SizedBox(
-              height: 15,
-            ),
-
-            Text(
-              'কোনো ${_statusText(_selectedStatus)} Withdraw নেই।',
-              textAlign:
-                  TextAlign.center,
-              style:
-                  const TextStyle(
-                fontSize: 17,
-                fontWeight:
-                    FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
+  Widget _infoRow(
+    IconData icon,
+    String title,
+    String value,
+  ) {
+    return Padding(
+      padding:
+          const EdgeInsets.only(
+        bottom: 7,
       ),
-    );
-  }
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 18,
+          ),
 
-  // ============================================================
-  // ERROR VIEW
-  // ============================================================
+          const SizedBox(
+            width: 8,
+          ),
 
-  Widget _errorView(
-    String error,
-  ) {
-    return Center(
-      child: Padding(
-        padding:
-            const EdgeInsets.all(20),
-        child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.error_outline,
-              size: 60,
+          SizedBox(
+            width: 85,
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                color:
+                    Colors.grey.shade700,
+              ),
             ),
+          ),
 
-            const SizedBox(
-              height: 15,
-            ),
-
-            const Text(
-              'Withdraw data load করা যায়নি।',
-              textAlign:
-                  TextAlign.center,
-              style:
-                  TextStyle(
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 12,
                 fontWeight:
-                    FontWeight.bold,
-                fontSize: 17,
+                    FontWeight.w500,
               ),
             ),
-
-            const SizedBox(
-              height: 10,
-            ),
-
-            Text(
-              _cleanError(error),
-              textAlign:
-                  TextAlign.center,
-            ),
-
-            const SizedBox(
-              height: 15,
-            ),
-
-            FilledButton(
-              onPressed: () {
-                setState(() {});
-              },
-              child:
-                  const Text(
-                'আবার চেষ্টা করুন',
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // TIMESTAMP
-  // ============================================================
-
-  String _formatTimestamp(
-    dynamic value,
-  ) {
-    if (value is Timestamp) {
-      final date =
-          value.toDate();
-
-      final day =
-          date.day
-              .toString()
-              .padLeft(
-                2,
-                '0',
-              );
-
-      final month =
-          date.month
-              .toString()
-              .padLeft(
-                2,
-                '0',
-              );
-
-      final year =
-          date.year.toString();
-
-      final hour =
-          date.hour
-              .toString()
-              .padLeft(
-                2,
-                '0',
-              );
-
-      final minute =
-          date.minute
-              .toString()
-              .padLeft(
-                2,
-                '0',
-              );
-
-      return '$day/$month/$year $hour:$minute';
-    }
-
-    return 'সময় পাওয়া যায়নি';
-  }
-
-  // ============================================================
-  // ERROR CLEAN
-  // ============================================================
-
-  String _cleanError(
-    dynamic error,
-  ) {
-    return error
-        .toString()
-        .replaceFirst(
-          'Exception: ',
-          '',
-        );
-  }
-
-  // ============================================================
-  // MESSAGE
-  // ============================================================
-
-  void _showMessage(
-    String message, {
-    bool isError = false,
-  }) {
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(
-      context,
-    ).hideCurrentSnackBar();
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-        ),
-        behavior:
-            SnackBarBehavior.floating,
+          ),
+        ],
       ),
     );
   }
