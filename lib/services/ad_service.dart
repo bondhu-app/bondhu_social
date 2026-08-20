@@ -1,27 +1,5 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-
-/// ============================================================
-/// BONDHU SOCIAL - ADMOB AD SERVICE
-/// ============================================================
-///
-/// এই Service-এর মধ্যে রাখা হয়েছে:
-///
-/// 1. Banner Ad
-/// 2. App Open Ad
-/// 3. Interstitial Ad
-/// 4. Rewarded Ad - 1
-/// 5. Rewarded Ad - 2
-/// 6. Native Advanced Ad
-///
-/// AdMob থেকে দেওয়া তোমার Ad Unit ID-গুলো এখানে ব্যবহার করা হয়েছে.
-///
-/// IMPORTANT:
-/// Release করার আগে অবশ্যই AdMob Console-এ App ID এবং
-/// AndroidManifest.xml-এর App ID ঠিকভাবে দেওয়া থাকতে হবে.
-/// ============================================================
 
 class AdService {
   AdService._();
@@ -32,32 +10,26 @@ class AdService {
   // ADMOB AD UNIT IDS
   // ============================================================
 
-  /// Banner
   static const String bannerAdUnitId =
       'ca-app-pub-9879411172250653/9787792421';
 
-  /// App Open
   static const String appOpenAdUnitId =
       'ca-app-pub-9879411172250653/2660111440';
 
-  /// Interstitial
   static const String interstitialAdUnitId =
       'ca-app-pub-9879411172250653/2152166362';
 
-  /// Rewarded 1
   static const String rewardedAdUnitId1 =
       'ca-app-pub-9879411172250653/1960594674';
 
-  /// Rewarded 2
   static const String rewardedAdUnitId2 =
       'ca-app-pub-9879411172250653/1769022980';
 
-  /// Native Advanced
   static const String nativeAdUnitId =
       'ca-app-pub-9879411172250653/6507128160';
 
   // ============================================================
-  // INTERNAL VARIABLES
+  // ADS
   // ============================================================
 
   BannerAd? _bannerAd;
@@ -70,7 +42,9 @@ class AdService {
 
   RewardedAd? _rewardedAd2;
 
-  NativeAd? _nativeAd;
+  // ============================================================
+  // STATUS
+  // ============================================================
 
   bool _bannerLoaded = false;
 
@@ -82,61 +56,52 @@ class AdService {
 
   bool _rewarded2Loaded = false;
 
-  bool _nativeLoaded = false;
+  bool _isShowingInterstitial = false;
 
   bool _isShowingAppOpen = false;
-
-  bool _isShowingInterstitial = false;
 
   bool _isShowingRewarded1 = false;
 
   bool _isShowingRewarded2 = false;
 
   // ============================================================
-  // INITIALIZE ADMOB
+  // INITIALIZE
   // ============================================================
 
   Future<void> initialize() async {
     try {
       await MobileAds.instance.initialize();
+
+      debugPrint('AdMob initialized successfully.');
     } catch (e) {
-      debugPrint(
-        'AdMob initialization error: $e',
-      );
+      debugPrint('AdMob initialization error: $e');
     }
   }
 
   // ============================================================
   // PRELOAD ALL ADS
   // ============================================================
-  ///
-  /// main.dart থেকে:
-  ///
-  /// AdService.instance.preloadAds();
-  ///
-  /// ব্যবহার করা যাবে।
-  ///
-  // ============================================================
 
   void preloadAds() {
     loadBannerAd();
     loadInterstitialAd();
     loadAppOpenAd();
-    loadRewardedAd1();
+    loadRewardedAd();
     loadRewardedAd2();
-    loadNativeAd();
   }
 
   // ============================================================
-  // BANNER AD
+  // BANNER
   // ============================================================
 
   void loadBannerAd() {
     _bannerAd?.dispose();
 
+    _bannerAd = null;
+
     _bannerLoaded = false;
 
-    final banner = BannerAd(
+    final ad = BannerAd(
       adUnitId: bannerAdUnitId,
       request: const AdRequest(),
       size: AdSize.banner,
@@ -162,13 +127,13 @@ class AdService {
       ),
     );
 
-    _bannerAd = banner;
+    _bannerAd = ad;
 
-    banner.load();
+    ad.load();
   }
 
   // ============================================================
-  // GET BANNER WIDGET
+  // BANNER WIDGET
   // ============================================================
 
   Widget bannerWidget({
@@ -194,23 +159,19 @@ class AdService {
   }
 
   // ============================================================
-  // GET BANNER AD
+  // BANNER GETTER
   // ============================================================
 
-  BannerAd? get bannerAd {
-    return _bannerAd;
-  }
+  BannerAd? get bannerAd => _bannerAd;
 
   // ============================================================
-  // INTERSTITIAL AD
+  // INTERSTITIAL
   // ============================================================
 
   void loadInterstitialAd() {
-    _interstitialAd?.dispose();
-
-    _interstitialAd = null;
-
-    _interstitialLoaded = false;
+    if (_interstitialLoaded) {
+      return;
+    }
 
     InterstitialAd.load(
       adUnitId: interstitialAdUnitId,
@@ -267,13 +228,6 @@ class AdService {
           debugPrint(
             'Interstitial Ad failed: $error',
           );
-
-          Future.delayed(
-            const Duration(seconds: 10),
-            () {
-              loadInterstitialAd();
-            },
-          );
         },
       ),
     );
@@ -303,7 +257,7 @@ class AdService {
       await ad.show();
     } catch (e) {
       debugPrint(
-        'Interstitial show exception: $e',
+        'Interstitial show error: $e',
       );
 
       ad.dispose();
@@ -313,7 +267,7 @@ class AdService {
   }
 
   // ============================================================
-  // APP OPEN AD
+  // APP OPEN
   // ============================================================
 
   void loadAppOpenAd() {
@@ -376,20 +330,13 @@ class AdService {
           debugPrint(
             'App Open Ad failed: $error',
           );
-
-          Future.delayed(
-            const Duration(seconds: 10),
-            () {
-              loadAppOpenAd();
-            },
-          );
         },
       ),
     );
   }
 
   // ============================================================
-  // SHOW APP OPEN AD
+  // SHOW APP OPEN
   // ============================================================
 
   Future<void> showAppOpenAd() async {
@@ -412,7 +359,7 @@ class AdService {
       await ad.show();
     } catch (e) {
       debugPrint(
-        'App Open show exception: $e',
+        'App Open show error: $e',
       );
 
       ad.dispose();
@@ -424,8 +371,20 @@ class AdService {
   // ============================================================
   // REWARDED AD 1
   // ============================================================
+  ///
+  /// পুরোনো HomeScreen-এ যদি:
+  ///
+  /// _adService.loadRewardedAd();
+  ///
+  /// থাকে, সেটাও কাজ করবে।
+  ///
+  // ============================================================
 
-  void loadRewardedAd1() {
+  void loadRewardedAd() {
+    if (_rewarded1Loaded) {
+      return;
+    }
+
     RewardedAd.load(
       adUnitId: rewardedAdUnitId1,
       request: const AdRequest(),
@@ -454,7 +413,7 @@ class AdService {
 
               _rewarded1Loaded = false;
 
-              loadRewardedAd1();
+              loadRewardedAd();
             },
             onAdFailedToShowFullScreenContent:
                 (ad, error) {
@@ -470,7 +429,7 @@ class AdService {
                 'Rewarded Ad 1 show error: $error',
               );
 
-              loadRewardedAd1();
+              loadRewardedAd();
             },
           );
         },
@@ -482,23 +441,24 @@ class AdService {
           debugPrint(
             'Rewarded Ad 1 failed: $error',
           );
-
-          Future.delayed(
-            const Duration(seconds: 10),
-            () {
-              loadRewardedAd1();
-            },
-          );
         },
       ),
     );
   }
 
   // ============================================================
-  // SHOW REWARDED AD 1
+  // SHOW REWARDED AD
+  // ============================================================
+  ///
+  /// HomeScreen-এর:
+  ///
+  /// _adService.showRewardedAd(...)
+  ///
+  /// সরাসরি কাজ করবে।
+  ///
   // ============================================================
 
-  Future<bool> showRewardedAd1({
+  Future<bool> showRewardedAd({
     required VoidCallback onReward,
   }) async {
     if (_isShowingRewarded1) {
@@ -508,7 +468,7 @@ class AdService {
     final ad = _rewardedAd1;
 
     if (ad == null || !_rewarded1Loaded) {
-      loadRewardedAd1();
+      loadRewardedAd();
 
       return false;
     }
@@ -517,16 +477,12 @@ class AdService {
 
     _rewarded1Loaded = false;
 
-    bool rewardReceived = false;
-
     try {
       ad.show(
         onUserEarnedReward: (
           AdWithoutView ad,
           RewardItem reward,
         ) {
-          rewardReceived = true;
-
           onReward();
         },
       );
@@ -534,12 +490,12 @@ class AdService {
       return true;
     } catch (e) {
       debugPrint(
-        'Rewarded Ad 1 exception: $e',
+        'Rewarded Ad show error: $e',
       );
 
       ad.dispose();
 
-      loadRewardedAd1();
+      loadRewardedAd();
 
       return false;
     }
@@ -550,6 +506,10 @@ class AdService {
   // ============================================================
 
   void loadRewardedAd2() {
+    if (_rewarded2Loaded) {
+      return;
+    }
+
     RewardedAd.load(
       adUnitId: rewardedAdUnitId2,
       request: const AdRequest(),
@@ -606,13 +566,6 @@ class AdService {
           debugPrint(
             'Rewarded Ad 2 failed: $error',
           );
-
-          Future.delayed(
-            const Duration(seconds: 10),
-            () {
-              loadRewardedAd2();
-            },
-          );
         },
       ),
     );
@@ -654,7 +607,7 @@ class AdService {
       return true;
     } catch (e) {
       debugPrint(
-        'Rewarded Ad 2 exception: $e',
+        'Rewarded Ad 2 show error: $e',
       );
 
       ad.dispose();
@@ -666,123 +619,22 @@ class AdService {
   }
 
   // ============================================================
-  // NATIVE ADVANCED AD
+  // STATUS GETTERS
   // ============================================================
 
-  void loadNativeAd() {
-    _nativeAd?.dispose();
+  bool get isBannerLoaded => _bannerLoaded;
 
-    _nativeAd = null;
+  bool get isInterstitialLoaded =>
+      _interstitialLoaded;
 
-    _nativeLoaded = false;
+  bool get isAppOpenLoaded =>
+      _appOpenLoaded;
 
-    final nativeAd = NativeAd(
-      adUnitId: nativeAdUnitId,
-      request: const AdRequest(),
-      listener: NativeAdListener(
-        onAdLoaded: (ad) {
-          _nativeLoaded = true;
+  bool get isRewarded1Loaded =>
+      _rewarded1Loaded;
 
-          debugPrint(
-            'Native Ad loaded successfully.',
-          );
-        },
-        onAdFailedToLoad: (ad, error) {
-          _nativeLoaded = false;
-
-          ad.dispose();
-
-          _nativeAd = null;
-
-          debugPrint(
-            'Native Ad failed: $error',
-          );
-
-          Future.delayed(
-            const Duration(seconds: 10),
-            () {
-              loadNativeAd();
-            },
-          );
-        },
-      ),
-
-      /// এখানে Flutter-এর জন্য কোনো custom native
-      /// factory প্রয়োজন না হলে null রাখা হয়েছে।
-      ///
-      /// Android Native Advanced Ad-এর জন্য যদি custom
-      /// NativeAdFactory ব্যবহার করা হয়, তাহলে পরে সেটি
-      /// আলাদা Android code দিয়ে সেটআপ করতে হবে।
-      factoryId: 'listTile',
-    );
-
-    _nativeAd = nativeAd;
-
-    nativeAd.load();
-  }
-
-  // ============================================================
-  // NATIVE AD WIDGET
-  // ============================================================
-
-  Widget nativeAdWidget({
-    double height = 120,
-    EdgeInsetsGeometry padding =
-        const EdgeInsets.symmetric(
-      vertical: 8,
-    ),
-  }) {
-    if (_nativeAd == null || !_nativeLoaded) {
-      return const SizedBox.shrink();
-    }
-
-    return Padding(
-      padding: padding,
-      child: SizedBox(
-        width: double.infinity,
-        height: height,
-        child: AdWidget(
-          ad: _nativeAd!,
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // NATIVE AD GETTER
-  // ============================================================
-
-  NativeAd? get nativeAd {
-    return _nativeAd;
-  }
-
-  // ============================================================
-  // STATUS
-  // ============================================================
-
-  bool get isBannerLoaded {
-    return _bannerLoaded;
-  }
-
-  bool get isInterstitialLoaded {
-    return _interstitialLoaded;
-  }
-
-  bool get isAppOpenLoaded {
-    return _appOpenLoaded;
-  }
-
-  bool get isRewarded1Loaded {
-    return _rewarded1Loaded;
-  }
-
-  bool get isRewarded2Loaded {
-    return _rewarded2Loaded;
-  }
-
-  bool get isNativeLoaded {
-    return _nativeLoaded;
-  }
+  bool get isRewarded2Loaded =>
+      _rewarded2Loaded;
 
   // ============================================================
   // DISPOSE
@@ -799,8 +651,6 @@ class AdService {
 
     _rewardedAd2?.dispose();
 
-    _nativeAd?.dispose();
-
     _bannerAd = null;
 
     _interstitialAd = null;
@@ -810,8 +660,6 @@ class AdService {
     _rewardedAd1 = null;
 
     _rewardedAd2 = null;
-
-    _nativeAd = null;
 
     _bannerLoaded = false;
 
@@ -823,6 +671,12 @@ class AdService {
 
     _rewarded2Loaded = false;
 
-    _nativeLoaded = false;
+    _isShowingInterstitial = false;
+
+    _isShowingAppOpen = false;
+
+    _isShowingRewarded1 = false;
+
+    _isShowingRewarded2 = false;
   }
 }
