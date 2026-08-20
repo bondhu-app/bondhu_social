@@ -15,7 +15,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // ============================================================
-  // FIREBASE
+  // FIREBASE INITIALIZE
   // ============================================================
 
   await Firebase.initializeApp(
@@ -23,19 +23,19 @@ Future<void> main() async {
   );
 
   // ============================================================
-  // ADMOB
+  // ADMOB INITIALIZE
   // ============================================================
 
   await MobileAds.instance.initialize();
 
   // ============================================================
-  // PRELOAD ADS
+  // LOAD ADS
   // ============================================================
 
   AdService.instance.preloadAds();
 
   // ============================================================
-  // APP
+  // START APP
   // ============================================================
 
   runApp(const BondhuSocialApp());
@@ -52,7 +52,6 @@ class BondhuSocialApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-
       title: 'বন্ধু সোশ্যাল',
 
       theme: ThemeData(
@@ -87,39 +86,22 @@ class AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream:
-          FirebaseAuth.instance.authStateChanges(),
+      stream: FirebaseAuth.instance.authStateChanges(),
 
       builder: (
         context,
         snapshot,
       ) {
-        // --------------------------------------------------------
-        // LOADING
-        // --------------------------------------------------------
-
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
           return const SplashScreen();
         }
 
-        // --------------------------------------------------------
-        // USER
-        // --------------------------------------------------------
-
         final user = snapshot.data;
-
-        // --------------------------------------------------------
-        // NOT LOGGED IN
-        // --------------------------------------------------------
 
         if (user == null) {
           return const LoginScreen();
         }
-
-        // --------------------------------------------------------
-        // LOGGED IN
-        // --------------------------------------------------------
 
         return const UserRoleGate();
       },
@@ -134,10 +116,6 @@ class AuthGate extends StatelessWidget {
 class UserRoleGate extends StatelessWidget {
   const UserRoleGate({super.key});
 
-  // ============================================================
-  // ADMIN EMAIL
-  // ============================================================
-
   static const String adminEmail =
       'md.mojidul.haque.1234@gmail.com';
 
@@ -146,47 +124,34 @@ class UserRoleGate extends StatelessWidget {
   // ============================================================
 
   Future<bool> _isAdmin() async {
-    final user =
-        FirebaseAuth.instance.currentUser;
+    final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       return false;
     }
 
-    // ----------------------------------------------------------
-    // ADMIN EMAIL CHECK
-    // ----------------------------------------------------------
-
-    final email =
-        user.email?.trim().toLowerCase();
+    final email = user.email?.trim().toLowerCase();
 
     if (email == adminEmail.toLowerCase()) {
       return true;
     }
 
-    // ----------------------------------------------------------
-    // FIRESTORE ROLE CHECK
-    // ----------------------------------------------------------
-
     try {
-      final document =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
+      final document = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
 
       if (!document.exists) {
         return false;
       }
 
-      final data =
-          document.data();
+      final data = document.data();
 
-      final role =
-          data?['role']
-              ?.toString()
-              .trim()
-              .toLowerCase();
+      final role = data?['role']
+          ?.toString()
+          .trim()
+          .toLowerCase();
 
       return role == 'admin';
     } catch (_) {
@@ -207,26 +172,14 @@ class UserRoleGate extends StatelessWidget {
         context,
         snapshot,
       ) {
-        // ------------------------------------------------------
-        // LOADING
-        // ------------------------------------------------------
-
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
           return const SplashScreen();
         }
 
-        // ------------------------------------------------------
-        // ADMIN
-        // ------------------------------------------------------
-
         if (snapshot.data == true) {
           return const AdminDashboardScreen();
         }
-
-        // ------------------------------------------------------
-        // NORMAL USER
-        // ------------------------------------------------------
 
         return const HomeScreen();
       },
@@ -252,41 +205,24 @@ class SplashScreen extends StatelessWidget {
               MainAxisAlignment.center,
 
           children: [
-            // ----------------------------------------------------
-            // ICON
-            // ----------------------------------------------------
-
             Icon(
               Icons.people_alt_rounded,
               size: 85,
               color: Colors.blue,
             ),
 
-            SizedBox(
-              height: 20,
-            ),
-
-            // ----------------------------------------------------
-            // APP NAME
-            // ----------------------------------------------------
+            SizedBox(height: 20),
 
             Text(
               'বন্ধু সোশ্যাল',
 
               style: TextStyle(
                 fontSize: 30,
-                fontWeight:
-                    FontWeight.bold,
+                fontWeight: FontWeight.bold,
               ),
             ),
 
-            SizedBox(
-              height: 25,
-            ),
-
-            // ----------------------------------------------------
-            // LOADING
-            // ----------------------------------------------------
+            SizedBox(height: 25),
 
             CircularProgressIndicator(),
           ],
