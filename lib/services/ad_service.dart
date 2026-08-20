@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
@@ -7,7 +9,7 @@ class AdService {
   static final AdService instance = AdService._();
 
   // ============================================================
-  // ADMOB IDs
+  // ADMOB AD UNIT IDs
   // ============================================================
 
   static const String bannerAdUnitId =
@@ -32,21 +34,22 @@ class AdService {
   // ADS
   // ============================================================
 
-  InterstitialAd? _interstitialAd;
-
-  RewardedAd? _rewardedAd;
-
-  RewardedAd? _rewardedAd2;
-
+  BannerAd? _bannerAd;
   AppOpenAd? _appOpenAd;
+  InterstitialAd? _interstitialAd;
+  RewardedAd? _rewardedAd;
+  RewardedAd? _rewardedAd2;
+  NativeAd? _nativeAd;
 
-  bool _loadingInterstitial = false;
+  bool _isAppOpenLoading = false;
+  bool _isInterstitialLoading = false;
+  bool _isRewardedLoading = false;
+  bool _isRewarded2Loading = false;
+  bool _isNativeLoading = false;
 
-  bool _loadingRewarded = false;
-
-  bool _loadingRewarded2 = false;
-
-  bool _loadingAppOpen = false;
+  bool _isInterstitialShowing = false;
+  bool _isRewardedShowing = false;
+  bool _isRewarded2Showing = false;
 
   // ============================================================
   // INITIALIZE
@@ -55,428 +58,10 @@ class AdService {
   Future<void> initialize() async {
     await MobileAds.instance.initialize();
 
-    preloadAds();
-  }
-
-  // ============================================================
-  // PRELOAD
-  // ============================================================
-
-  void preloadAds() {
+    loadAppOpenAd();
     loadInterstitialAd();
     loadRewardedAd();
     loadRewardedAd2();
-    loadAppOpenAd();
-  }
-
-  // ============================================================
-  // INTERSTITIAL
-  // ============================================================
-
-  void loadInterstitialAd() {
-    if (_loadingInterstitial ||
-        _interstitialAd != null) {
-      return;
-    }
-
-    _loadingInterstitial = true;
-
-    InterstitialAd.load(
-      adUnitId: interstitialAdUnitId,
-      request: const AdRequest(),
-      adLoadCallback:
-          InterstitialAdLoadCallback(
-        onAdLoaded: (ad) {
-          _loadingInterstitial = false;
-
-          _interstitialAd = ad;
-
-          ad.fullScreenContentCallback =
-              FullScreenContentCallback(
-            onAdDismissedFullScreenContent:
-                (ad) {
-              ad.dispose();
-
-              _interstitialAd = null;
-
-              loadInterstitialAd();
-            },
-            onAdFailedToShowFullScreenContent:
-                (ad, error) {
-              ad.dispose();
-
-              _interstitialAd = null;
-
-              loadInterstitialAd();
-            },
-          );
-        },
-        onAdFailedToLoad: (error) {
-          _loadingInterstitial = false;
-
-          _interstitialAd = null;
-
-          debugPrint(
-            'Interstitial failed: $error',
-          );
-        },
-      ),
-    );
-  }
-
-  // ============================================================
-  // SHOW INTERSTITIAL
-  // ============================================================
-
-  Future<void> showInterstitialAd({
-    VoidCallback? onAdDismissed,
-  }) async {
-    final ad = _interstitialAd;
-
-    if (ad == null) {
-      loadInterstitialAd();
-
-      onAdDismissed?.call();
-
-      return;
-    }
-
-    _interstitialAd = null;
-
-    ad.fullScreenContentCallback =
-        FullScreenContentCallback(
-      onAdDismissedFullScreenContent:
-          (ad) {
-        ad.dispose();
-
-        loadInterstitialAd();
-
-        onAdDismissed?.call();
-      },
-      onAdFailedToShowFullScreenContent:
-          (ad, error) {
-        ad.dispose();
-
-        loadInterstitialAd();
-
-        onAdDismissed?.call();
-      },
-    );
-
-    await ad.show();
-  }
-
-  // ============================================================
-  // REWARDED AD 1
-  // ============================================================
-
-  void loadRewardedAd() {
-    if (_loadingRewarded ||
-        _rewardedAd != null) {
-      return;
-    }
-
-    _loadingRewarded = true;
-
-    RewardedAd.load(
-      adUnitId: rewardedAdUnitId,
-      request: const AdRequest(),
-      rewardedAdLoadCallback:
-          RewardedAdLoadCallback(
-        onAdLoaded: (ad) {
-          _loadingRewarded = false;
-
-          _rewardedAd = ad;
-
-          ad.fullScreenContentCallback =
-              FullScreenContentCallback(
-            onAdDismissedFullScreenContent:
-                (ad) {
-              ad.dispose();
-
-              _rewardedAd = null;
-
-              loadRewardedAd();
-            },
-            onAdFailedToShowFullScreenContent:
-                (ad, error) {
-              ad.dispose();
-
-              _rewardedAd = null;
-
-              loadRewardedAd();
-            },
-          );
-        },
-        onAdFailedToLoad: (error) {
-          _loadingRewarded = false;
-
-          _rewardedAd = null;
-
-          debugPrint(
-            'Rewarded 1 failed: $error',
-          );
-        },
-      ),
-    );
-  }
-
-  // ============================================================
-  // REWARDED AD 2
-  // ============================================================
-
-  void loadRewardedAd2() {
-    if (_loadingRewarded2 ||
-        _rewardedAd2 != null) {
-      return;
-    }
-
-    _loadingRewarded2 = true;
-
-    RewardedAd.load(
-      adUnitId: rewardedAdUnitId2,
-      request: const AdRequest(),
-      rewardedAdLoadCallback:
-          RewardedAdLoadCallback(
-        onAdLoaded: (ad) {
-          _loadingRewarded2 = false;
-
-          _rewardedAd2 = ad;
-
-          ad.fullScreenContentCallback =
-              FullScreenContentCallback(
-            onAdDismissedFullScreenContent:
-                (ad) {
-              ad.dispose();
-
-              _rewardedAd2 = null;
-
-              loadRewardedAd2();
-            },
-            onAdFailedToShowFullScreenContent:
-                (ad, error) {
-              ad.dispose();
-
-              _rewardedAd2 = null;
-
-              loadRewardedAd2();
-            },
-          );
-        },
-        onAdFailedToLoad: (error) {
-          _loadingRewarded2 = false;
-
-          _rewardedAd2 = null;
-
-          debugPrint(
-            'Rewarded 2 failed: $error',
-          );
-        },
-      ),
-    );
-  }
-
-  // ============================================================
-  // SHOW REWARDED
-  // ============================================================
-
-  Future<void> showRewardedAd({
-    VoidCallback? onReward,
-    VoidCallback? onAdUnavailable,
-  }) async {
-    final ad = _rewardedAd;
-
-    if (ad == null) {
-      loadRewardedAd();
-
-      onAdUnavailable?.call();
-
-      return;
-    }
-
-    _rewardedAd = null;
-
-    bool earned = false;
-
-    ad.fullScreenContentCallback =
-        FullScreenContentCallback(
-      onAdDismissedFullScreenContent:
-          (ad) {
-        ad.dispose();
-
-        loadRewardedAd();
-
-        if (!earned) {
-          onAdUnavailable?.call();
-        }
-      },
-      onAdFailedToShowFullScreenContent:
-          (ad, error) {
-        ad.dispose();
-
-        loadRewardedAd();
-
-        onAdUnavailable?.call();
-      },
-    );
-
-    await ad.show(
-      onUserEarnedReward:
-          (
-        AdWithoutView ad,
-        RewardItem reward,
-      ) {
-        earned = true;
-
-        onReward?.call();
-      },
-    );
-  }
-
-  // ============================================================
-  // SHOW REWARDED AD 2
-  // ============================================================
-
-  Future<void> showRewardedAd2({
-    VoidCallback? onReward,
-    VoidCallback? onAdUnavailable,
-  }) async {
-    final ad = _rewardedAd2;
-
-    if (ad == null) {
-      loadRewardedAd2();
-
-      onAdUnavailable?.call();
-
-      return;
-    }
-
-    _rewardedAd2 = null;
-
-    bool earned = false;
-
-    ad.fullScreenContentCallback =
-        FullScreenContentCallback(
-      onAdDismissedFullScreenContent:
-          (ad) {
-        ad.dispose();
-
-        loadRewardedAd2();
-
-        if (!earned) {
-          onAdUnavailable?.call();
-        }
-      },
-      onAdFailedToShowFullScreenContent:
-          (ad, error) {
-        ad.dispose();
-
-        loadRewardedAd2();
-
-        onAdUnavailable?.call();
-      },
-    );
-
-    await ad.show(
-      onUserEarnedReward:
-          (
-        AdWithoutView ad,
-        RewardItem reward,
-      ) {
-        earned = true;
-
-        onReward?.call();
-      },
-    );
-  }
-
-  // ============================================================
-  // APP OPEN AD
-  // ============================================================
-
-  void loadAppOpenAd() {
-    if (_loadingAppOpen ||
-        _appOpenAd != null) {
-      return;
-    }
-
-    _loadingAppOpen = true;
-
-    AppOpenAd.load(
-      adUnitId: appOpenAdUnitId,
-      request: const AdRequest(),
-      adLoadCallback:
-          AppOpenAdLoadCallback(
-        onAdLoaded: (ad) {
-          _loadingAppOpen = false;
-
-          _appOpenAd = ad;
-
-          ad.fullScreenContentCallback =
-              FullScreenContentCallback(
-            onAdDismissedFullScreenContent:
-                (ad) {
-              ad.dispose();
-
-              _appOpenAd = null;
-
-              loadAppOpenAd();
-            },
-            onAdFailedToShowFullScreenContent:
-                (ad, error) {
-              ad.dispose();
-
-              _appOpenAd = null;
-
-              loadAppOpenAd();
-            },
-          );
-        },
-        onAdFailedToLoad: (error) {
-          _loadingAppOpen = false;
-
-          _appOpenAd = null;
-
-          debugPrint(
-            'App Open failed: $error',
-          );
-        },
-      ),
-    );
-  }
-
-  // ============================================================
-  // APP OPEN - COMPATIBLE METHOD
-  // ============================================================
-
-  Future<void> showAppOpenAdIfAvailable() async {
-    final ad = _appOpenAd;
-
-    if (ad == null) {
-      loadAppOpenAd();
-
-      return;
-    }
-
-    _appOpenAd = null;
-
-    ad.fullScreenContentCallback =
-        FullScreenContentCallback(
-      onAdDismissedFullScreenContent:
-          (ad) {
-        ad.dispose();
-
-        loadAppOpenAd();
-      },
-      onAdFailedToShowFullScreenContent:
-          (ad, error) {
-        ad.dispose();
-
-        loadAppOpenAd();
-      },
-    );
-
-    await ad.show();
   }
 
   // ============================================================
@@ -485,10 +70,9 @@ class AdService {
 
   BannerAd createBannerAd({
     required VoidCallback onLoaded,
-    required Function(LoadAdError error)
-        onFailed,
+    VoidCallback? onFailed,
   }) {
-    return BannerAd(
+    final banner = BannerAd(
       adUnitId: bannerAdUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
@@ -499,82 +83,356 @@ class AdService {
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
 
-          onFailed(error);
+          if (onFailed != null) {
+            onFailed();
+          }
+        },
+      ),
+    );
+
+    _bannerAd = banner;
+
+    banner.load();
+
+    return banner;
+  }
+
+  BannerAd? get bannerAd => _bannerAd;
+
+  void disposeBannerAd() {
+    _bannerAd?.dispose();
+    _bannerAd = null;
+  }
+
+  // ============================================================
+  // APP OPEN AD
+  // ============================================================
+
+  void loadAppOpenAd() {
+    if (_isAppOpenLoading || _appOpenAd != null) {
+      return;
+    }
+
+    _isAppOpenLoading = true;
+
+    AppOpenAd.load(
+      adUnitId: appOpenAdUnitId,
+      request: const AdRequest(),
+      adLoadCallback: AppOpenAdLoadCallback(
+        onAdLoaded: (ad) {
+          _isAppOpenLoading = false;
+          _appOpenAd = ad;
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          _isAppOpenLoading = false;
+          _appOpenAd = null;
         },
       ),
     );
   }
 
+  void showAppOpenAdIfAvailable() {
+    final ad = _appOpenAd;
+
+    if (ad == null) {
+      loadAppOpenAd();
+      return;
+    }
+
+    _appOpenAd = null;
+
+    ad.fullScreenContentCallback =
+        FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
+        loadAppOpenAd();
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        ad.dispose();
+        loadAppOpenAd();
+      },
+    );
+
+    ad.show();
+  }
+
+  // ============================================================
+  // INTERSTITIAL
+  // ============================================================
+
+  void loadInterstitialAd() {
+    if (_isInterstitialLoading ||
+        _interstitialAd != null) {
+      return;
+    }
+
+    _isInterstitialLoading = true;
+
+    InterstitialAd.load(
+      adUnitId: interstitialAdUnitId,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          _isInterstitialLoading = false;
+          _interstitialAd = ad;
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          _isInterstitialLoading = false;
+          _interstitialAd = null;
+        },
+      ),
+    );
+  }
+
+  void showInterstitialAd({
+    VoidCallback? onFinished,
+  }) {
+    final ad = _interstitialAd;
+
+    if (ad == null) {
+      loadInterstitialAd();
+
+      onFinished?.call();
+      return;
+    }
+
+    _interstitialAd = null;
+    _isInterstitialShowing = true;
+
+    ad.fullScreenContentCallback =
+        FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        _isInterstitialShowing = false;
+        ad.dispose();
+        loadInterstitialAd();
+
+        onFinished?.call();
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        _isInterstitialShowing = false;
+        ad.dispose();
+        loadInterstitialAd();
+
+        onFinished?.call();
+      },
+    );
+
+    ad.show();
+  }
+
+  bool get isInterstitialShowing =>
+      _isInterstitialShowing;
+
+  // ============================================================
+  // REWARDED AD
+  // ============================================================
+
+  void loadRewardedAd() {
+    if (_isRewardedLoading ||
+        _rewardedAd != null) {
+      return;
+    }
+
+    _isRewardedLoading = true;
+
+    RewardedAd.load(
+      adUnitId: rewardedAdUnitId,
+      request: const AdRequest(),
+      rewardedAdLoadCallback:
+          RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          _isRewardedLoading = false;
+          _rewardedAd = ad;
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          _isRewardedLoading = false;
+          _rewardedAd = null;
+        },
+      ),
+    );
+  }
+
+  void showRewardedAd({
+    VoidCallback? onReward,
+    VoidCallback? onFinished,
+  }) {
+    final ad = _rewardedAd;
+
+    if (ad == null) {
+      loadRewardedAd();
+
+      onFinished?.call();
+      return;
+    }
+
+    _rewardedAd = null;
+    _isRewardedShowing = true;
+
+    ad.fullScreenContentCallback =
+        FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        _isRewardedShowing = false;
+        ad.dispose();
+        loadRewardedAd();
+
+        onFinished?.call();
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        _isRewardedShowing = false;
+        ad.dispose();
+        loadRewardedAd();
+
+        onFinished?.call();
+      },
+    );
+
+    ad.show(
+      onUserEarnedReward:
+          (AdWithoutView ad, RewardItem reward) {
+        onReward?.call();
+      },
+    );
+  }
+
+  // ============================================================
+  // REWARDED AD 2
+  // ============================================================
+
+  void loadRewardedAd2() {
+    if (_isRewarded2Loading ||
+        _rewardedAd2 != null) {
+      return;
+    }
+
+    _isRewarded2Loading = true;
+
+    RewardedAd.load(
+      adUnitId: rewardedAdUnitId2,
+      request: const AdRequest(),
+      rewardedAdLoadCallback:
+          RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          _isRewarded2Loading = false;
+          _rewardedAd2 = ad;
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          _isRewarded2Loading = false;
+          _rewardedAd2 = null;
+        },
+      ),
+    );
+  }
+
+  void showRewardedAd2({
+    VoidCallback? onReward,
+    VoidCallback? onFinished,
+  }) {
+    final ad = _rewardedAd2;
+
+    if (ad == null) {
+      loadRewardedAd2();
+
+      onFinished?.call();
+      return;
+    }
+
+    _rewardedAd2 = null;
+    _isRewarded2Showing = true;
+
+    ad.fullScreenContentCallback =
+        FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        _isRewarded2Showing = false;
+        ad.dispose();
+        loadRewardedAd2();
+
+        onFinished?.call();
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        _isRewarded2Showing = false;
+        ad.dispose();
+        loadRewardedAd2();
+
+        onFinished?.call();
+      },
+    );
+
+    ad.show(
+      onUserEarnedReward:
+          (AdWithoutView ad, RewardItem reward) {
+        onReward?.call();
+      },
+    );
+  }
+
   // ============================================================
   // NATIVE AD
-  //
-  // IMPORTANT:
-  // google_mobile_ads 7.x NativeAd does not
-  // use the old constructor style.
   // ============================================================
 
   NativeAd createNativeAd({
-    required String factoryId,
     required VoidCallback onLoaded,
-    required Function(LoadAdError error)
-        onFailed,
+    VoidCallback? onFailed,
   }) {
-    final ad = NativeAd(
+    final native = NativeAd(
       adUnitId: nativeAdUnitId,
-      factoryId: factoryId,
       request: const AdRequest(),
-      listener: NativeAdListener(
+      factoryId: 'listTile',
+      adListener: NativeAdListener(
         onAdLoaded: (ad) {
           onLoaded();
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
 
-          onFailed(error);
+          if (onFailed != null) {
+            onFailed();
+          }
         },
       ),
     );
 
-    ad.load();
+    _nativeAd = native;
 
-    return ad;
+    native.load();
+
+    return native;
+  }
+
+  NativeAd? get nativeAd => _nativeAd;
+
+  void disposeNativeAd() {
+    _nativeAd?.dispose();
+    _nativeAd = null;
   }
 
   // ============================================================
-  // STATUS
+  // PRELOAD
   // ============================================================
 
-  bool get isInterstitialReady =>
-      _interstitialAd != null;
-
-  bool get isRewardedReady =>
-      _rewardedAd != null;
-
-  bool get isRewarded2Ready =>
-      _rewardedAd2 != null;
-
-  bool get isAppOpenReady =>
-      _appOpenAd != null;
+  void preloadAds() {
+    loadAppOpenAd();
+    loadInterstitialAd();
+    loadRewardedAd();
+    loadRewardedAd2();
+  }
 
   // ============================================================
   // DISPOSE
   // ============================================================
 
   void dispose() {
-    _interstitialAd?.dispose();
-
-    _rewardedAd?.dispose();
-
-    _rewardedAd2?.dispose();
-
+    _bannerAd?.dispose();
     _appOpenAd?.dispose();
+    _interstitialAd?.dispose();
+    _rewardedAd?.dispose();
+    _rewardedAd2?.dispose();
+    _nativeAd?.dispose();
 
-    _interstitialAd = null;
-
-    _rewardedAd = null;
-
-    _rewardedAd2 = null;
-
+    _bannerAd = null;
     _appOpenAd = null;
+    _interstitialAd = null;
+    _rewardedAd = null;
+    _rewardedAd2 = null;
+    _nativeAd = null;
   }
 }
