@@ -30,7 +30,7 @@ jobs:
           java-version: '17'
 
       # ==========================================================
-      # FLUTTER
+      # FLUTTER 3.47.0
       # ==========================================================
 
       - name: Setup Flutter
@@ -41,7 +41,7 @@ jobs:
           cache: true
 
       # ==========================================================
-      # FLUTTER VERSION
+      # CHECK FLUTTER
       # ==========================================================
 
       - name: Check Flutter
@@ -50,17 +50,18 @@ jobs:
           dart --version
 
       # ==========================================================
-      # CHECK ANDROID PROJECT
+      # CHECK REQUIRED FILES
       # ==========================================================
 
       - name: Check Android project
         run: |
-          echo "===== Checking Android project ====="
+          echo "===== Android project check ====="
 
           test -f android/app/src/main/AndroidManifest.xml
+
           test -f android/app/src/main/kotlin/com/bondhu/social/MainActivity.kt
 
-          echo "Android project OK"
+          echo "Android project files found."
 
       # ==========================================================
       # CHECK FIREBASE
@@ -68,11 +69,11 @@ jobs:
 
       - name: Check Firebase
         run: |
-          echo "===== Checking Firebase ====="
+          echo "===== Firebase check ====="
 
           test -f android/app/google-services.json
 
-          echo "Firebase configuration OK"
+          echo "Firebase configuration found."
 
       # ==========================================================
       # FLUTTER CLEAN
@@ -91,87 +92,76 @@ jobs:
           flutter pub get
 
       # ==========================================================
-      # SHOW DEPENDENCIES
+      # DIAGNOSE ANDROID V1 EMBEDDING
       # ==========================================================
 
-      - name: Show Flutter dependencies
-        run: |
-          echo "===== Flutter dependency tree ====="
-          flutter pub deps
-
-      # ==========================================================
-      # SEARCH V1 EMBEDDING
-      #
-      # IMPORTANT:
-      # Search BOTH project AND PUB CACHE.
-      # Old plugin may contain Flutter v1 embedding.
-      # ==========================================================
-
-      - name: Search Android v1 embedding
+      - name: Diagnose Android v1 embedding
         shell: bash
         run: |
+
           echo "=================================================="
-          echo "SEARCHING FOR FLUTTER ANDROID V1 EMBEDDING"
+          echo "ANDROID PROJECT FILES"
           echo "=================================================="
+
+          find android -type f | sort
 
           echo ""
-          echo "===== PROJECT SEARCH ====="
+          echo "=================================================="
+          echo "SEARCHING FOR FLUTTER V1 EMBEDDING"
+          echo "=================================================="
 
-          grep -RInE \
-            "io\.flutter\.app\.FlutterActivity|io\.flutter\.app\.FlutterApplication|io\.flutter\.app\.FlutterFragmentActivity|PluginRegistry\.Registrar|registerWith" \
-            android \
-            --exclude-dir=build \
-            --exclude-dir=.gradle \
+          find android -type f \
+            \( -name "*.java" -o -name "*.kt" -o -name "*.gradle" -o -name "*.xml" \) \
+            -print0 | xargs -0 grep -nEi \
+            "io\.flutter\.app|PluginRegistry\.Registrar|registerWith|flutterEmbedding" \
             || true
 
           echo ""
-          echo "===== PUB CACHE SEARCH ====="
-
-          if [ -d "$HOME/.pub-cache" ]; then
-
-            grep -RInE \
-              "io\.flutter\.app\.FlutterActivity|io\.flutter\.app\.FlutterApplication|io\.flutter\.app\.FlutterFragmentActivity|PluginRegistry\.Registrar|registerWith" \
-              "$HOME/.pub-cache" \
-              --include="*.java" \
-              --include="*.kt" \
-              --include="*.gradle" \
-              --include="*.dart" \
-              2>/dev/null \
-              || true
-
-          else
-            echo "Pub cache not found."
-          fi
-
-          echo ""
-          echo "===== MAIN ACTIVITY ====="
+          echo "=================================================="
+          echo "MAIN ACTIVITY"
+          echo "=================================================="
 
           cat android/app/src/main/kotlin/com/bondhu/social/MainActivity.kt
 
           echo ""
-          echo "===== ANDROID MANIFEST ====="
+          echo "=================================================="
+          echo "ANDROID MANIFEST"
+          echo "=================================================="
 
           cat android/app/src/main/AndroidManifest.xml
 
           echo ""
-          echo "===== SEARCH COMPLETE ====="
+          echo "=================================================="
+          echo "SETTINGS.GRADLE"
+          echo "=================================================="
 
-      # ==========================================================
-      # CHECK GRADLE FILES
-      # ==========================================================
-
-      - name: Check Gradle configuration
-        run: |
-          echo "===== android/settings.gradle ====="
           cat android/settings.gradle || true
 
           echo ""
-          echo "===== android/build.gradle ====="
+          echo "=================================================="
+          echo "ANDROID BUILD.GRADLE"
+          echo "=================================================="
+
           cat android/build.gradle || true
 
           echo ""
-          echo "===== android/app/build.gradle ====="
+          echo "=================================================="
+          echo "APP BUILD.GRADLE"
+          echo "=================================================="
+
           cat android/app/build.gradle || true
+
+          echo ""
+          echo "=================================================="
+          echo "GRADLE PROPERTIES"
+          echo "=================================================="
+
+          cat android/gradle.properties || true
+
+          echo ""
+          echo "=================================================="
+          echo "DIAGNOSTIC COMPLETE"
+          echo "=================================================="
 
       # ==========================================================
       # BUILD APK
