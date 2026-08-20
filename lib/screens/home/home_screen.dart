@@ -1,7 +1,8 @@
+// FILE: lib/screens/home/home_screen.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../../services/ad_service.dart';
 import '../../services/data_service.dart';
@@ -21,180 +22,74 @@ class _HomeScreenState extends State<HomeScreen>
 
   int _selectedIndex = 0;
 
-  BannerAd? _bannerAd;
-  bool _bannerLoaded = false;
-
-  NativeAd? _nativeAd;
-  bool _nativeLoaded = false;
-
-  DateTime? _lastInterstitialTime;
-
   @override
   void initState() {
     super.initState();
 
     WidgetsBinding.instance.addObserver(this);
 
-    _loadBannerAd();
-    _loadNativeAd();
-
-    _adService.loadInterstitialAd();
-    _adService.loadRewardedAd();
-    _adService.loadRewardedAd2();
-    _adService.loadAppOpenAd();
+    // Ads preload
+    _loadAds();
   }
 
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+  void _loadAds() {
+    try {
+      _adService.loadBannerAd();
+    } catch (_) {}
 
-    _bannerAd?.dispose();
-    _nativeAd?.dispose();
+    try {
+      _adService.loadInterstitialAd();
+    } catch (_) {}
 
-    super.dispose();
+    try {
+      _adService.loadRewardedAd();
+    } catch (_) {}
+
+    try {
+      _adService.loadRewardedAd2();
+    } catch (_) {}
+
+    try {
+      _adService.loadNativeAd();
+    } catch (_) {}
+
+    try {
+      _adService.loadAppOpenAd();
+    } catch (_) {}
   }
-
-  // ============================================================
-  // APP LIFECYCLE
-  // ============================================================
 
   @override
   void didChangeAppLifecycleState(
     AppLifecycleState state,
   ) {
     if (state == AppLifecycleState.resumed) {
-      _adService.showAppOpenAdIfAvailable();
+      try {
+        _adService.showAppOpenAdIfAvailable();
+      } catch (_) {}
     }
   }
 
-  // ============================================================
-  // BANNER AD
-  // ============================================================
-
-  void _loadBannerAd() {
-    final banner = _adService.createBannerAd(
-      onLoaded: () {
-        if (!mounted) return;
-
-        setState(() {
-          _bannerLoaded = true;
-        });
-      },
-      onFailed: () {
-        if (!mounted) return;
-
-        setState(() {
-          _bannerLoaded = false;
-        });
-      },
-    );
-
-    _bannerAd = banner;
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
-
-  // ============================================================
-  // NATIVE ADVANCED AD
-  // ============================================================
-
-  void _loadNativeAd() {
-    final native = _adService.createNativeAd(
-      listener: NativeAdListener(
-        onAdLoaded: (ad) {
-          if (!mounted) return;
-
-          setState(() {
-            _nativeLoaded = true;
-          });
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-
-          if (!mounted) return;
-
-          setState(() {
-            _nativeLoaded = false;
-          });
-        },
-      ),
-    );
-
-    _nativeAd = native;
-  }
-
-  // ============================================================
-  // INTERSTITIAL
-  // ============================================================
-
-  void _maybeShowInterstitial() {
-    final now = DateTime.now();
-
-    if (_lastInterstitialTime != null) {
-      final difference =
-          now.difference(_lastInterstitialTime!);
-
-      if (difference.inMinutes < 5) {
-        return;
-      }
-    }
-
-    if (!_adService.isInterstitialReady) {
-      _adService.loadInterstitialAd();
-      return;
-    }
-
-    _lastInterstitialTime = now;
-
-    _adService.showInterstitialAd();
-  }
-
-  // ============================================================
-  // LOGOUT
-  // ============================================================
 
   Future<void> _logout() async {
-    final shouldLogout =
-        await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Logout'),
-          content: const Text(
-            'আপনি কি আপনার Account থেকে Logout করতে চান?',
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Logout করা যায়নি: $error',
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                  false,
-                );
-              },
-              child: const Text('না'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                  true,
-                );
-              },
-              child: const Text('Logout'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (shouldLogout != true) {
-      return;
+        ),
+      );
     }
-
-    await FirebaseAuth.instance.signOut();
   }
-
-  // ============================================================
-  // PROFILE
-  // ============================================================
 
   void _openProfile() {
     Navigator.push(
@@ -205,36 +100,45 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // ============================================================
-  // CREATE POST
-  // ============================================================
-
   void _openCreatePost() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => const CreatePostSheet(),
-    ).then((_) {
-      // নতুন Post করার পরে Interstitial
-      // দেখানোর চেষ্টা করা হবে।
-      _maybeShowInterstitial();
-    });
+    );
   }
 
-  // ============================================================
-  // BUILD
-  // ============================================================
+  void _showRewardedAd() {
+    try {
+      _adService.showRewardedAd(
+        onReward: () {
+          if (!mounted) return;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Reward সফলভাবে পাওয়া গেছে।',
+              ),
+            ),
+          );
+        },
+      );
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Rewarded Ad এখন প্রস্তুত নয়।',
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          const Color(0xFFF0F2F5),
-
-      // ========================================================
-      // APP BAR
-      // ========================================================
+      backgroundColor: const Color(0xFFF0F2F5),
 
       appBar: AppBar(
         title: const Text(
@@ -247,7 +151,13 @@ class _HomeScreenState extends State<HomeScreen>
         actions: [
           IconButton(
             onPressed: () {
-              _showSearchDialog();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Search feature শীঘ্রই আসছে।',
+                  ),
+                ),
+              );
             },
             icon: const Icon(
               Icons.search_rounded,
@@ -262,10 +172,6 @@ class _HomeScreenState extends State<HomeScreen>
         ],
       ),
 
-      // ========================================================
-      // BODY
-      // ========================================================
-
       body: IndexedStack(
         index: _selectedIndex,
         children: [
@@ -276,15 +182,9 @@ class _HomeScreenState extends State<HomeScreen>
         ],
       ),
 
-      // ========================================================
-      // BOTTOM NAVIGATION
-      // ========================================================
-
-      bottomNavigationBar:
-          NavigationBar(
+      bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected:
-            (index) {
+        onDestinationSelected: (index) {
           setState(() {
             _selectedIndex = index;
           });
@@ -329,23 +229,17 @@ class _HomeScreenState extends State<HomeScreen>
         ],
       ),
 
-      // ========================================================
-      // CREATE POST BUTTON
-      // ========================================================
-
-      floatingActionButton:
-          _selectedIndex == 0
-              ? FloatingActionButton.extended(
-                  onPressed:
-                      _openCreatePost,
-                  icon: const Icon(
-                    Icons.add,
-                  ),
-                  label: const Text(
-                    'Post',
-                  ),
-                )
-              : null,
+      floatingActionButton: _selectedIndex == 0
+          ? FloatingActionButton.extended(
+              onPressed: _openCreatePost,
+              icon: const Icon(
+                Icons.add,
+              ),
+              label: const Text(
+                'Post',
+              ),
+            )
+          : null,
     );
   }
 
@@ -355,24 +249,17 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildHomeFeed() {
     return StreamBuilder<
-        QuerySnapshot<
-            Map<String, dynamic>>>(
-      stream:
-          _dataService.postsStream(),
-      builder: (
-        context,
-        snapshot,
-      ) {
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: _dataService.postsStream(),
+      builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(
             child: Padding(
-              padding:
-                  const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(24),
               child: Text(
-                'Feed লোড করতে সমস্যা হয়েছে।\n\n'
+                'Feed লোড করতে সমস্যা হয়েছে.\n\n'
                 '${snapshot.error}',
-                textAlign:
-                    TextAlign.center,
+                textAlign: TextAlign.center,
               ),
             ),
           );
@@ -381,8 +268,7 @@ class _HomeScreenState extends State<HomeScreen>
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
           return const Center(
-            child:
-                CircularProgressIndicator(),
+            child: CircularProgressIndicator(),
           );
         }
 
@@ -391,27 +277,36 @@ class _HomeScreenState extends State<HomeScreen>
 
         return RefreshIndicator(
           onRefresh: () async {
-            await Future<void>.delayed(
+            await Future.delayed(
               const Duration(
                 milliseconds: 300,
               ),
             );
           },
-          child: ListView.builder(
-            padding:
-                const EdgeInsets.only(
+          child: ListView(
+            padding: const EdgeInsets.only(
               top: 8,
               bottom: 100,
             ),
-            itemCount:
-                _feedItemCount(posts.length),
-            itemBuilder:
-                (context, index) {
-              return _buildFeedItem(
-                posts,
-                index,
-              );
-            },
+            children: [
+              _buildCreatePostCard(),
+
+              const SizedBox(
+                height: 8,
+              ),
+
+              // Banner Ad
+              _buildBannerAd(),
+
+              const SizedBox(
+                height: 8,
+              ),
+
+              if (posts.isEmpty)
+                _buildEmptyFeed()
+              else
+                ..._buildPostsWithAds(posts),
+            ],
           ),
         );
       },
@@ -419,169 +314,66 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // ============================================================
-  // FEED ITEM COUNT
+  // POSTS + ADS
   // ============================================================
 
-  int _feedItemCount(int postCount) {
-    if (postCount == 0) {
-      return 2;
-    }
-
-    int count = 1;
-
-    for (int i = 0;
-        i < postCount;
-        i++) {
-      count++;
-
-      // Native Ad after every 5 posts
-      if ((i + 1) % 5 == 0) {
-        count++;
-      }
-
-      // Banner after every 8 posts
-      if ((i + 1) % 8 == 0) {
-        count++;
-      }
-    }
-
-    return count;
-  }
-
-  // ============================================================
-  // FEED ITEM
-  // ============================================================
-
-  Widget _buildFeedItem(
+  List<Widget> _buildPostsWithAds(
     List<QueryDocumentSnapshot<
             Map<String, dynamic>>>
         posts,
-    int index,
   ) {
-    if (index == 0) {
-      return Column(
-        children: [
-          _buildCreatePostCard(),
-          const SizedBox(height: 8),
-          if (_bannerLoaded &&
-              _bannerAd != null)
-            _buildBannerAd(),
-        ],
-      );
-    }
+    final List<Widget> items = [];
 
-    if (posts.isEmpty) {
-      return _buildEmptyFeed();
-    }
-
-    int postIndex = 0;
-
-    for (int i = 1;
-        i <= posts.length;
-        i++) {
-      if (postIndex >= posts.length) {
-        break;
-      }
-
-      if (index == i) {
-        return PostCard(
-          post: posts[postIndex],
+    for (int i = 0; i < posts.length; i++) {
+      items.add(
+        PostCard(
+          post: posts[i],
           dataService: _dataService,
+        ),
+      );
+
+      // প্রতি 3টি Post পর Banner
+      if ((i + 1) % 3 == 0) {
+        items.add(
+          _buildBannerAd(),
         );
       }
-
-      postIndex++;
     }
 
-    int currentPosition = 1;
-
-    for (int i = 0;
-        i < posts.length;
-        i++) {
-      currentPosition++;
-
-      if ((i + 1) % 5 == 0) {
-        if (index == currentPosition) {
-          if (_nativeLoaded &&
-              _nativeAd != null) {
-            return _buildNativeAd();
-          }
-
-          return const SizedBox.shrink();
-        }
-
-        currentPosition++;
-      }
-
-      if ((i + 1) % 8 == 0) {
-        if (index == currentPosition) {
-          if (_bannerLoaded &&
-              _bannerAd != null) {
-            return _buildBannerAd();
-          }
-
-          return const SizedBox.shrink();
-        }
-
-        currentPosition++;
-      }
-    }
-
-    return const SizedBox.shrink();
+    return items;
   }
 
   // ============================================================
-  // BANNER WIDGET
+  // BANNER AD
   // ============================================================
 
   Widget _buildBannerAd() {
-    final banner = _bannerAd;
+    try {
+      final banner = _adService.bannerAd;
 
-    if (banner == null ||
-        !_bannerLoaded) {
-      return const SizedBox.shrink();
+      if (banner == null) {
+        return const SizedBox(
+          height: 0,
+        );
+      }
+
+      return Container(
+        margin: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 4,
+        ),
+        alignment: Alignment.center,
+        child: SizedBox(
+          width: banner.size.width.toDouble(),
+          height: banner.size.height.toDouble(),
+          child: _adService.bannerAdWidget(),
+        ),
+      );
+    } catch (_) {
+      return const SizedBox(
+        height: 0,
+      );
     }
-
-    return Container(
-      margin:
-          const EdgeInsets.symmetric(
-        vertical: 8,
-      ),
-      color: Colors.white,
-      width: double.infinity,
-      height: banner.size.height.toDouble(),
-      alignment: Alignment.center,
-      child: AdWidget(
-        ad: banner,
-      ),
-    );
-  }
-
-  // ============================================================
-  // NATIVE AD WIDGET
-  // ============================================================
-
-  Widget _buildNativeAd() {
-    final native = _nativeAd;
-
-    if (native == null ||
-        !_nativeLoaded) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      margin:
-          const EdgeInsets.symmetric(
-        vertical: 8,
-        horizontal: 4,
-      ),
-      height: 320,
-      width: double.infinity,
-      color: Colors.white,
-      child: AdWidget(
-        ad: native,
-      ),
-    );
   }
 
   // ============================================================
@@ -594,8 +386,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     return Container(
       color: Colors.white,
-      padding:
-          const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(14),
       child: Row(
         children: [
           const CircleAvatar(
@@ -604,26 +395,23 @@ class _HomeScreenState extends State<HomeScreen>
               Icons.person,
             ),
           ),
+
           const SizedBox(
             width: 12,
           ),
+
           Expanded(
             child: InkWell(
               borderRadius:
-                  BorderRadius.circular(
-                24,
-              ),
-              onTap:
-                  _openCreatePost,
+                  BorderRadius.circular(24),
+              onTap: _openCreatePost,
               child: Container(
                 padding:
-                    const EdgeInsets
-                        .symmetric(
+                    const EdgeInsets.symmetric(
                   horizontal: 18,
                   vertical: 12,
                 ),
-                decoration:
-                    BoxDecoration(
+                decoration: BoxDecoration(
                   color:
                       Colors.grey.shade100,
                   borderRadius:
@@ -633,7 +421,8 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
                 child: Text(
                   user?.displayName != null
-                      ? 'কী ভাবছেন, ${user!.displayName}?'
+                      ? 'কী ভাবছেন, '
+                          '${user!.displayName}?'
                       : 'কী ভাবছেন?',
                   style: TextStyle(
                     color:
@@ -643,9 +432,9 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
           ),
+
           IconButton(
-            onPressed:
-                _openCreatePost,
+            onPressed: _openCreatePost,
             icon: const Icon(
               Icons.photo_library_rounded,
               color: Colors.green,
@@ -663,8 +452,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildEmptyFeed() {
     return Container(
       color: Colors.white,
-      padding:
-          const EdgeInsets.all(50),
+      padding: const EdgeInsets.all(50),
       child: const Column(
         children: [
           Icon(
@@ -672,9 +460,11 @@ class _HomeScreenState extends State<HomeScreen>
             size: 70,
             color: Colors.grey,
           ),
+
           SizedBox(
             height: 18,
           ),
+
           Text(
             'এখনও কোনো Post নেই',
             style: TextStyle(
@@ -683,9 +473,11 @@ class _HomeScreenState extends State<HomeScreen>
                   FontWeight.bold,
             ),
           ),
+
           SizedBox(
             height: 8,
           ),
+
           Text(
             'প্রথম Post তৈরি করে শুরু করুন।',
             textAlign:
@@ -702,8 +494,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildFriendsPage() {
     return ListView(
-      padding:
-          const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       children: [
         const Text(
           'বন্ধু',
@@ -713,9 +504,11 @@ class _HomeScreenState extends State<HomeScreen>
                 FontWeight.bold,
           ),
         ),
+
         const SizedBox(
           height: 20,
         ),
+
         _menuCard(
           icon:
               Icons.person_add_alt_1,
@@ -723,12 +516,9 @@ class _HomeScreenState extends State<HomeScreen>
               'Friend Requests',
           subtitle:
               'আসা Friend Request দেখুন',
-          onTap: () {
-            _showComingSoon(
-              'Friend Requests',
-            );
-          },
+          onTap: () {},
         ),
+
         _menuCard(
           icon:
               Icons.people_alt_outlined,
@@ -736,12 +526,9 @@ class _HomeScreenState extends State<HomeScreen>
               'All Friends',
           subtitle:
               'আপনার সব বন্ধু দেখুন',
-          onTap: () {
-            _showComingSoon(
-              'All Friends',
-            );
-          },
+          onTap: () {},
         ),
+
         _menuCard(
           icon:
               Icons.person_search_outlined,
@@ -749,11 +536,7 @@ class _HomeScreenState extends State<HomeScreen>
               'Find Friends',
           subtitle:
               'নতুন বন্ধু খুঁজুন',
-          onTap: () {
-            _showComingSoon(
-              'Find Friends',
-            );
-          },
+          onTap: () {},
         ),
       ],
     );
@@ -776,9 +559,11 @@ class _HomeScreenState extends State<HomeScreen>
                 FontWeight.bold,
           ),
         ),
+
         const SizedBox(
           height: 20,
         ),
+
         Container(
           padding:
               const EdgeInsets.all(40),
@@ -786,9 +571,7 @@ class _HomeScreenState extends State<HomeScreen>
               BoxDecoration(
             color: Colors.white,
             borderRadius:
-                BorderRadius.circular(
-              14,
-            ),
+                BorderRadius.circular(14),
           ),
           child: const Column(
             children: [
@@ -797,9 +580,11 @@ class _HomeScreenState extends State<HomeScreen>
                 size: 70,
                 color: Colors.grey,
               ),
+
               SizedBox(
                 height: 15,
               ),
+
               Text(
                 'এখনও কোনো Notification নেই।',
               ),
@@ -830,9 +615,11 @@ class _HomeScreenState extends State<HomeScreen>
                 FontWeight.bold,
           ),
         ),
+
         const SizedBox(
           height: 16,
         ),
+
         Card(
           child: ListTile(
             leading:
@@ -850,20 +637,20 @@ class _HomeScreenState extends State<HomeScreen>
                     FontWeight.bold,
               ),
             ),
-            subtitle: Text(
-              user?.email ?? '',
-            ),
+            subtitle:
+                Text(user?.email ?? ''),
             trailing:
                 const Icon(
               Icons.chevron_right,
             ),
-            onTap:
-                _openProfile,
+            onTap: _openProfile,
           ),
         ),
+
         const SizedBox(
           height: 12,
         ),
+
         _menuCard(
           icon:
               Icons.person_outline,
@@ -874,6 +661,7 @@ class _HomeScreenState extends State<HomeScreen>
           onTap:
               _openProfile,
         ),
+
         _menuCard(
           icon:
               Icons.article_outlined,
@@ -884,6 +672,7 @@ class _HomeScreenState extends State<HomeScreen>
           onTap:
               _openProfile,
         ),
+
         _menuCard(
           icon:
               Icons.settings_outlined,
@@ -891,12 +680,9 @@ class _HomeScreenState extends State<HomeScreen>
               'Settings',
           subtitle:
               'Account ও Privacy settings',
-          onTap: () {
-            _showComingSoon(
-              'Settings',
-            );
-          },
+          onTap: () {},
         ),
+
         _menuCard(
           icon:
               Icons.help_outline,
@@ -904,12 +690,9 @@ class _HomeScreenState extends State<HomeScreen>
               'Help & Support',
           subtitle:
               'সাহায্য এবং Support',
-          onTap: () {
-            _showComingSoon(
-              'Help & Support',
-            );
-          },
+          onTap: () {},
         ),
+
         _menuCard(
           icon:
               Icons.info_outline,
@@ -927,173 +710,56 @@ class _HomeScreenState extends State<HomeScreen>
             );
           },
         ),
+
         const SizedBox(
           height: 12,
         ),
+
+        // Rewarded Ad
         Card(
           child: ListTile(
-            leading:
-                const Icon(
+            leading: const Icon(
+              Icons.card_giftcard,
+            ),
+            title: const Text(
+              'Watch Ad & Get Reward',
+              style: TextStyle(
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+            subtitle: const Text(
+              'একটি বিজ্ঞাপন দেখে Reward নিন',
+            ),
+            trailing: const Icon(
+              Icons.play_circle_outline,
+            ),
+            onTap: _showRewardedAd,
+          ),
+        ),
+
+        const SizedBox(
+          height: 8,
+        ),
+
+        Card(
+          child: ListTile(
+            leading: const Icon(
               Icons.logout_rounded,
               color: Colors.red,
             ),
-            title:
-                const Text(
+            title: const Text(
               'Logout',
-              style:
-                  TextStyle(
+              style: TextStyle(
                 color: Colors.red,
                 fontWeight:
                     FontWeight.bold,
               ),
             ),
-            onTap:
-                _logout,
-          ),
-        ),
-
-        const SizedBox(
-          height: 25,
-        ),
-
-        // ======================================================
-        // REWARDED AD
-        // ======================================================
-
-        Card(
-          child: ListTile(
-            leading:
-                const CircleAvatar(
-              child: Icon(
-                Icons.card_giftcard,
-              ),
-            ),
-            title:
-                const Text(
-              'Watch Rewarded Ad',
-              style:
-                  TextStyle(
-                fontWeight:
-                    FontWeight.bold,
-              ),
-            ),
-            subtitle:
-                const Text(
-              'বিজ্ঞাপন দেখুন এবং Reward পান',
-            ),
-            trailing:
-                const Icon(
-              Icons.play_arrow,
-            ),
-            onTap:
-                _showRewardedAd,
+            onTap: _logout,
           ),
         ),
       ],
-    );
-  }
-
-  // ============================================================
-  // REWARDED AD
-  // ============================================================
-
-  void _showRewardedAd() {
-    if (!_adService.isRewardedReady) {
-      _adService.loadRewardedAd();
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Rewarded Ad প্রস্তুত হচ্ছে। একটু পরে চেষ্টা করুন।',
-          ),
-        ),
-      );
-
-      return;
-    }
-
-    _adService.showRewardedAd(
-      onReward: (reward) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
-          SnackBar(
-            content: Text(
-              'আপনি ${reward.amount} ${reward.type} Reward পেয়েছেন।',
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ============================================================
-  // SEARCH
-  // ============================================================
-
-  void _showSearchDialog() {
-    final controller =
-        TextEditingController();
-
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title:
-              const Text(
-            'Search',
-          ),
-          content:
-              TextField(
-            controller:
-                controller,
-            autofocus: true,
-            decoration:
-                const InputDecoration(
-              hintText:
-                  'User বা Post Search করুন...',
-              prefixIcon:
-                  Icon(
-                Icons.search,
-              ),
-              border:
-                  OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
-              },
-              child:
-                  const Text(
-                'বন্ধ করুন',
-              ),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
-
-                _showComingSoon(
-                  'Search',
-                );
-              },
-              child:
-                  const Text(
-                'Search',
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -1113,18 +779,15 @@ class _HomeScreenState extends State<HomeScreen>
         bottom: 8,
       ),
       child: ListTile(
-        leading:
-            CircleAvatar(
+        leading: CircleAvatar(
           backgroundColor:
               Colors.blue.shade50,
-          child:
-              Icon(
+          child: Icon(
             icon,
             color: Colors.blue,
           ),
         ),
-        title:
-            Text(
+        title: Text(
           title,
           style:
               const TextStyle(
@@ -1133,41 +796,20 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
         subtitle:
-            Text(
-          subtitle,
-        ),
+            Text(subtitle),
         trailing:
             const Icon(
           Icons.chevron_right,
         ),
-        onTap:
-            onTap,
-      ),
-    );
-  }
-
-  // ============================================================
-  // COMING SOON
-  // ============================================================
-
-  void _showComingSoon(
-    String feature,
-  ) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      SnackBar(
-        content: Text(
-          '$feature feature শীঘ্রই আসছে।',
-        ),
+        onTap: onTap,
       ),
     );
   }
 }
 
-// ==================================================================
-// CREATE POST SHEET
-// ==================================================================
+// ================================================================
+// CREATE POST
+// ================================================================
 
 class CreatePostSheet
     extends StatefulWidget {
@@ -1176,8 +818,9 @@ class CreatePostSheet
   });
 
   @override
-  State<CreatePostSheet> createState() =>
-      _CreatePostSheetState();
+  State<CreatePostSheet>
+      createState() =>
+          _CreatePostSheetState();
 }
 
 class _CreatePostSheetState
@@ -1201,9 +844,8 @@ class _CreatePostSheetState
         _controller.text.trim();
 
     if (text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         const SnackBar(
           content: Text(
             'Post-এর লেখা লিখুন।',
@@ -1213,11 +855,9 @@ class _CreatePostSheetState
       return;
     }
 
-    if (_loading) return;
-
-    setState(() {
-      _loading = true;
-    });
+    setState(
+      () => _loading = true,
+    );
 
     try {
       await _dataService.createPost(
@@ -1228,9 +868,8 @@ class _CreatePostSheetState
 
       Navigator.pop(context);
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         const SnackBar(
           content: Text(
             'Post সফলভাবে প্রকাশ হয়েছে।',
@@ -1240,59 +879,47 @@ class _CreatePostSheetState
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
           content:
-              Text(
-            error.toString(),
-          ),
+              Text(error.toString()),
         ),
       );
     } finally {
       if (mounted) {
-        setState(() {
-          _loading = false;
-        });
+        setState(
+          () => _loading = false,
+        );
       }
     }
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     final user =
         FirebaseAuth.instance.currentUser;
 
     return Padding(
-      padding:
-          EdgeInsets.only(
+      padding: EdgeInsets.only(
         left: 16,
         right: 16,
         top: 8,
-        bottom:
-            MediaQuery.of(
-                  context,
-                )
-                    .viewInsets
-                    .bottom +
-                16,
+        bottom: MediaQuery.of(context)
+                .viewInsets
+                .bottom +
+            16,
       ),
-      child:
-          Column(
+      child: Column(
         mainAxisSize:
             MainAxisSize.min,
         children: [
           Row(
             children: [
               const Expanded(
-                child:
-                    Text(
+                child: Text(
                   'নতুন Post তৈরি করুন',
-                  style:
-                      TextStyle(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight:
                         FontWeight.bold,
@@ -1300,13 +927,12 @@ class _CreatePostSheetState
                 ),
               ),
               IconButton(
-                onPressed:
-                    _loading
-                        ? null
-                        : () =>
-                            Navigator.pop(
-                              context,
-                            ),
+                onPressed: _loading
+                    ? null
+                    : () =>
+                        Navigator.pop(
+                          context,
+                        ),
                 icon:
                     const Icon(
                   Icons.close,
@@ -1314,18 +940,21 @@ class _CreatePostSheetState
               ),
             ],
           ),
+
           const Divider(),
+
           Row(
             children: [
               const CircleAvatar(
-                child:
-                    Icon(
+                child: Icon(
                   Icons.person,
                 ),
               ),
+
               const SizedBox(
                 width: 10,
               ),
+
               Text(
                 user?.displayName ??
                     'বন্ধু',
@@ -1337,9 +966,11 @@ class _CreatePostSheetState
               ),
             ],
           ),
+
           const SizedBox(
             height: 15,
           ),
+
           TextField(
             controller:
                 _controller,
@@ -1364,40 +995,37 @@ class _CreatePostSheetState
               ),
             ),
           ),
+
           const SizedBox(
             height: 8,
           ),
+
           SizedBox(
             width:
                 double.infinity,
             height: 50,
-            child:
-                FilledButton(
-              onPressed:
-                  _loading
-                      ? null
-                      : _createPost,
-              child:
-                  _loading
-                      ? const SizedBox(
-                          width: 23,
-                          height: 23,
-                          child:
-                              CircularProgressIndicator(
-                            strokeWidth:
-                                2,
-                          ),
-                        )
-                      : const Text(
-                          'Post করুন',
-                          style:
-                              TextStyle(
-                            fontSize:
-                                16,
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
-                        ),
+            child: FilledButton(
+              onPressed: _loading
+                  ? null
+                  : _createPost,
+              child: _loading
+                  ? const SizedBox(
+                      width: 23,
+                      height: 23,
+                      child:
+                          CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      'Post করুন',
+                      style:
+                          TextStyle(
+                        fontSize: 16,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -1406,14 +1034,15 @@ class _CreatePostSheetState
   }
 }
 
-// ==================================================================
+// ================================================================
 // POST CARD
-// ==================================================================
+// ================================================================
 
 class PostCard
     extends StatelessWidget {
   final DocumentSnapshot<
-      Map<String, dynamic>> post;
+          Map<String, dynamic>>
+      post;
 
   final DataService dataService;
 
@@ -1431,34 +1060,29 @@ class PostCard
       context: context,
       builder: (_) =>
           AlertDialog(
-        title:
-            const Text(
+        title: const Text(
           'Post মুছে ফেলবেন?',
         ),
-        content:
-            const Text(
+        content: const Text(
           'এই Post স্থায়ীভাবে মুছে যাবে।',
         ),
         actions: [
           TextButton(
-            onPressed:
-                () => Navigator.pop(
+            onPressed: () =>
+                Navigator.pop(
               context,
               false,
             ),
             child:
-                const Text(
-              'না',
-            ),
+                const Text('না'),
           ),
           FilledButton(
-            onPressed:
-                () => Navigator.pop(
+            onPressed: () =>
+                Navigator.pop(
               context,
               true,
             ),
-            child:
-                const Text(
+            child: const Text(
               'মুছে ফেলুন',
             ),
           ),
@@ -1479,12 +1103,10 @@ class PostCard
         return;
       }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         const SnackBar(
-          content:
-              Text(
+          content: Text(
             'Post মুছে ফেলা হয়েছে।',
           ),
         ),
@@ -1494,44 +1116,38 @@ class PostCard
         return;
       }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
           content:
-              Text(
-            error.toString(),
-          ),
+              Text(error.toString()),
         ),
       );
     }
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     final data =
         post.data() ?? {};
 
     final userId =
         data['userId']
-                ?.toString() ??
+                as String? ??
             '';
 
     final userName =
         data['userName']
-                ?.toString() ??
+                as String? ??
             'বন্ধু';
 
     final text =
-        data['text']
-                ?.toString() ??
+        data['text'] as String? ??
             '';
 
     final imageUrl =
         data['imageUrl']
-            ?.toString();
+            as String?;
 
     final createdAt =
         data['createdAt']
@@ -1556,8 +1172,7 @@ class PostCard
             0;
 
     final currentUser =
-        FirebaseAuth
-            .instance
+        FirebaseAuth.instance
             .currentUser;
 
     final isOwner =
@@ -1570,32 +1185,27 @@ class PostCard
           const EdgeInsets.only(
         bottom: 8,
       ),
-      color:
-          Colors.white,
+      color: Colors.white,
       padding:
-          const EdgeInsets.all(
-        14,
-      ),
-      child:
-          Column(
+          const EdgeInsets.all(14),
+      child: Column(
         crossAxisAlignment:
-            CrossAxisAlignment
-                .start,
+            CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               const CircleAvatar(
-                child:
-                    Icon(
+                child: Icon(
                   Icons.person,
                 ),
               ),
+
               const SizedBox(
                 width: 10,
               ),
+
               Expanded(
-                child:
-                    Column(
+                child: Column(
                   crossAxisAlignment:
                       CrossAxisAlignment
                           .start,
@@ -1612,8 +1222,7 @@ class PostCard
                       _formatDate(
                         createdAt,
                       ),
-                      style:
-                          TextStyle(
+                      style: TextStyle(
                         color: Colors
                             .grey
                             .shade600,
@@ -1623,6 +1232,7 @@ class PostCard
                   ],
                 ),
               ),
+
               if (isOwner)
                 PopupMenuButton<
                     String>(
@@ -1636,13 +1246,11 @@ class PostCard
                     }
                   },
                   itemBuilder:
-                      (_) =>
-                          const [
+                      (_) => const [
                     PopupMenuItem(
                       value:
                           'delete',
-                      child:
-                          Text(
+                      child: Text(
                         'Delete',
                       ),
                     ),
@@ -1710,18 +1318,13 @@ class PostCard
             height: 10,
           ),
 
-          // ======================================================
-          // COUNTS
-          // ======================================================
-
           Row(
             children: [
               if (likeCount > 0) ...[
                 const Icon(
                   Icons.favorite,
                   size: 18,
-                  color:
-                      Colors.red,
+                  color: Colors.red,
                 ),
                 const SizedBox(
                   width: 5,
@@ -1730,16 +1333,20 @@ class PostCard
                   '$likeCount',
                 ),
               ],
+
               const Spacer(),
+
               if (commentCount > 0)
                 Text(
                   '$commentCount Comment',
                 ),
+
               if (commentCount > 0 &&
                   shareCount > 0)
                 const SizedBox(
                   width: 12,
                 ),
+
               if (shareCount > 0)
                 Text(
                   '$shareCount Share',
@@ -1749,21 +1356,16 @@ class PostCard
 
           const Divider(),
 
-          // ======================================================
-          // ACTION BUTTONS
-          // ======================================================
-
           Row(
             children: [
               Expanded(
-                child:
-                    _LikeButton(
-                  postId:
-                      post.id,
+                child: _LikeButton(
+                  postId: post.id,
                   dataService:
                       dataService,
                 ),
               ),
+
               Expanded(
                 child:
                     TextButton.icon(
@@ -1775,9 +1377,8 @@ class PostCard
                           true,
                       showDragHandle:
                           true,
-                      builder:
-                          (_) =>
-                              CommentsSheet(
+                      builder: (_) =>
+                          CommentsSheet(
                         postId:
                             post.id,
                         dataService:
@@ -1790,20 +1391,17 @@ class PostCard
                     Icons
                         .comment_outlined,
                   ),
-                  label:
-                      Text(
-                    commentCount >
-                            0
+                  label: Text(
+                    commentCount > 0
                         ? 'Comment $commentCount'
                         : 'Comment',
                   ),
                 ),
               ),
+
               Expanded(
-                child:
-                    _ShareButton(
-                  postId:
-                      post.id,
+                child: _ShareButton(
+                  postId: post.id,
                   dataService:
                       dataService,
                 ),
@@ -1829,25 +1427,21 @@ class PostCard
         DateTime.now()
             .difference(date);
 
-    if (difference
-            .inMinutes <
+    if (difference.inMinutes <
         1) {
       return 'এইমাত্র';
     }
 
-    if (difference
-            .inMinutes <
+    if (difference.inMinutes <
         60) {
       return '${difference.inMinutes} মিনিট আগে';
     }
 
-    if (difference.inHours <
-        24) {
+    if (difference.inHours < 24) {
       return '${difference.inHours} ঘণ্টা আগে';
     }
 
-    if (difference.inDays <
-        7) {
+    if (difference.inDays < 7) {
       return '${difference.inDays} দিন আগে';
     }
 
@@ -1855,9 +1449,9 @@ class PostCard
   }
 }
 
-// ==================================================================
+// ================================================================
 // LIKE BUTTON
-// ==================================================================
+// ================================================================
 
 class _LikeButton
     extends StatelessWidget {
@@ -1870,50 +1464,43 @@ class _LikeButton
   });
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return StreamBuilder<bool>(
       stream:
           dataService.likeStatusStream(
         postId,
       ),
       builder:
-          (
-        context,
-        snapshot,
-      ) {
+          (context, snapshot) {
         final liked =
             snapshot.data ??
                 false;
 
         return TextButton.icon(
-          onPressed:
-              () async {
+          onPressed: () async {
             try {
               await dataService
                   .likePost(
                 postId,
               );
             } catch (error) {
-              if (!context.mounted) {
+              if (!context
+                  .mounted) {
                 return;
               }
 
               ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(
+                      context)
+                  .showSnackBar(
                 SnackBar(
-                  content:
-                      Text(
+                  content: Text(
                     error.toString(),
                   ),
                 ),
               );
             }
           },
-          icon:
-              Icon(
+          icon: Icon(
             liked
                 ? Icons.favorite
                 : Icons.favorite_border,
@@ -1921,20 +1508,17 @@ class _LikeButton
                 ? Colors.red
                 : null,
           ),
-          label:
-              Text(
+          label: Text(
             liked
                 ? 'Liked'
                 : 'Like',
-            style:
-                TextStyle(
+            style: TextStyle(
               color: liked
                   ? Colors.red
                   : null,
-              fontWeight:
-                  liked
-                      ? FontWeight.bold
-                      : null,
+              fontWeight: liked
+                  ? FontWeight.bold
+                  : null,
             ),
           ),
         );
@@ -1943,9 +1527,9 @@ class _LikeButton
   }
 }
 
-// ==================================================================
+// ================================================================
 // SHARE BUTTON
-// ==================================================================
+// ================================================================
 
 class _ShareButton
     extends StatelessWidget {
@@ -1958,42 +1542,36 @@ class _ShareButton
   });
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return StreamBuilder<bool>(
       stream:
           dataService.shareStatusStream(
         postId,
       ),
       builder:
-          (
-        context,
-        snapshot,
-      ) {
+          (context, snapshot) {
         final shared =
             snapshot.data ??
                 false;
 
         return TextButton.icon(
-          onPressed:
-              () async {
+          onPressed: () async {
             try {
               await dataService
                   .sharePost(
                 postId,
               );
 
-              if (!context.mounted) {
+              if (!context
+                  .mounted) {
                 return;
               }
 
               ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(
+                      context)
+                  .showSnackBar(
                 SnackBar(
-                  content:
-                      Text(
+                  content: Text(
                     shared
                         ? 'Share সরিয়ে দেওয়া হয়েছে।'
                         : 'Post Share হয়েছে।',
@@ -2005,47 +1583,41 @@ class _ShareButton
                 ),
               );
             } catch (error) {
-              if (!context.mounted) {
+              if (!context
+                  .mounted) {
                 return;
               }
 
               ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(
+                      context)
+                  .showSnackBar(
                 SnackBar(
-                  content:
-                      Text(
+                  content: Text(
                     error.toString(),
                   ),
                 ),
               );
             }
           },
-          icon:
-              Icon(
+          icon: Icon(
             shared
                 ? Icons.check_circle
                 : Icons.share_outlined,
-            color:
-                shared
-                    ? Colors.green
-                    : null,
+            color: shared
+                ? Colors.green
+                : null,
           ),
-          label:
-              Text(
+          label: Text(
             shared
                 ? 'Shared'
                 : 'Share',
-            style:
-                TextStyle(
-              color:
-                  shared
-                      ? Colors.green
-                      : null,
-              fontWeight:
-                  shared
-                      ? FontWeight.bold
-                      : null,
+            style: TextStyle(
+              color: shared
+                  ? Colors.green
+                  : null,
+              fontWeight: shared
+                  ? FontWeight.bold
+                  : null,
             ),
           ),
         );
@@ -2054,9 +1626,9 @@ class _ShareButton
   }
 }
 
-// ==================================================================
+// ================================================================
 // COMMENTS SHEET
-// ==================================================================
+// ================================================================
 
 class CommentsSheet
     extends StatefulWidget {
@@ -2070,8 +1642,9 @@ class CommentsSheet
   });
 
   @override
-  State<CommentsSheet> createState() =>
-      _CommentsSheetState();
+  State<CommentsSheet>
+      createState() =>
+          _CommentsSheetState();
 }
 
 class _CommentsSheetState
@@ -2096,67 +1669,52 @@ class _CommentsSheetState
       return;
     }
 
-    setState(() {
-      _sending = true;
-    });
+    setState(
+      () => _sending = true,
+    );
 
     try {
       await widget.dataService
           .addComment(
-        postId:
-            widget.postId,
+        postId: widget.postId,
         text: text,
       );
 
       _controller.clear();
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
           content:
-              Text(
-            error.toString(),
-          ),
+              Text(error.toString()),
         ),
       );
     } finally {
       if (mounted) {
-        setState(() {
-          _sending = false;
-        });
+        setState(
+          () => _sending = false,
+        );
       }
     }
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return SafeArea(
-      child:
-          SizedBox(
+      child: SizedBox(
         height:
-            MediaQuery.of(
-                  context,
-                )
+            MediaQuery.of(context)
                     .size
                     .height *
                 .75,
-        child:
-            Column(
+        child: Column(
           children: [
             const Padding(
               padding:
-                  EdgeInsets.all(
-                16,
-              ),
-              child:
-                  Text(
+                  EdgeInsets.all(16),
+              child: Text(
                 'Comments',
                 style:
                     TextStyle(
@@ -2166,9 +1724,11 @@ class _CommentsSheetState
                 ),
               ),
             ),
+
             const Divider(
               height: 1,
             ),
+
             Expanded(
               child: StreamBuilder<
                   QuerySnapshot<
@@ -2179,8 +1739,7 @@ class _CommentsSheetState
                     .commentsStream(
                   widget.postId,
                 ),
-                builder:
-                    (
+                builder: (
                   context,
                   snapshot,
                 ) {
@@ -2194,38 +1753,38 @@ class _CommentsSheetState
                     );
                   }
 
-                  if (snapshot.hasError) {
+                  if (snapshot
+                      .hasError) {
                     return Center(
-                      child:
-                          Text(
-                        'Comment লোড করা যায়নি।\n'
+                      child: Text(
+                        'Comment লোড করা যায়নি.\n'
                         '${snapshot.error}',
                         textAlign:
-                            TextAlign.center,
+                            TextAlign
+                                .center,
                       ),
                     );
                   }
 
                   final comments =
-                      snapshot.data?.docs ??
+                      snapshot.data
+                              ?.docs ??
                           [];
 
                   if (comments
                       .isEmpty) {
                     return const Center(
-                      child:
-                          Text(
+                      child: Text(
                         'এখনও কোনো Comment নেই।',
                       ),
                     );
                   }
 
-                  return ListView.builder(
+                  return ListView
+                      .builder(
                     padding:
                         const EdgeInsets
-                            .all(
-                      12,
-                    ),
+                            .all(12),
                     itemCount:
                         comments.length,
                     itemBuilder:
@@ -2250,7 +1809,8 @@ class _CommentsSheetState
                               null &&
                           comment[
                                   'userId'] ==
-                              currentUser.uid;
+                              currentUser
+                                  .uid;
 
                       return Card(
                         margin:
@@ -2264,7 +1824,8 @@ class _CommentsSheetState
                               const CircleAvatar(
                             child:
                                 Icon(
-                              Icons.person,
+                              Icons
+                                  .person,
                             ),
                           ),
                           title:
@@ -2275,7 +1836,8 @@ class _CommentsSheetState
                             style:
                                 const TextStyle(
                               fontWeight:
-                                  FontWeight.bold,
+                                  FontWeight
+                                      .bold,
                             ),
                           ),
                           subtitle:
@@ -2304,9 +1866,10 @@ class _CommentsSheetState
                                             return;
                                           }
 
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
+                                          ScaffoldMessenger
+                                              .of(
+                                                  context)
+                                              .showSnackBar(
                                             SnackBar(
                                               content:
                                                   Text(
@@ -2330,14 +1893,13 @@ class _CommentsSheetState
                 },
               ),
             ),
+
             Container(
               padding:
-                  const EdgeInsets
-                      .all(
+                  const EdgeInsets.all(
                 10,
               ),
-              child:
-                  Row(
+              child: Row(
                 children: [
                   Expanded(
                     child:
@@ -2357,43 +1919,47 @@ class _CommentsSheetState
                         filled:
                             true,
                         fillColor:
-                            Colors.grey
+                            Colors
+                                .grey
                                 .shade100,
                         border:
                             OutlineInputBorder(
                           borderRadius:
-                              BorderRadius.circular(
+                              BorderRadius
+                                  .circular(
                             24,
                           ),
                           borderSide:
-                              BorderSide.none,
+                              BorderSide
+                                  .none,
                         ),
                       ),
                     ),
                   ),
+
                   const SizedBox(
                     width: 8,
                   ),
+
                   IconButton(
                     onPressed:
                         _sending
                             ? null
                             : _sendComment,
-                    icon:
-                        _sending
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child:
-                                    CircularProgressIndicator(
-                                  strokeWidth:
-                                      2,
-                                ),
-                              )
-                            : const Icon(
-                                Icons
-                                    .send_rounded,
-                              ),
+                    icon: _sending
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth:
+                                  2,
+                            ),
+                          )
+                        : const Icon(
+                            Icons
+                                .send_rounded,
+                          ),
                   ),
                 ],
               ),
