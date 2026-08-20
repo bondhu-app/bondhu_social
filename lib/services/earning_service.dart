@@ -14,12 +14,14 @@ class EarningService {
       FirebaseAuth.instance;
 
   // ============================================================
-  // SETTINGS
+  // REVENUE SPLIT
   // ============================================================
 
-  // User-এর earning-এর কত শতাংশ Admin পাবে।
-  // 20.0 = 20%
-  static const double adminCommissionPercent = 20.0;
+  // User পাবে 80%
+  static const double userPercentage = 0.80;
+
+  // Admin পাবে 20%
+  static const double adminPercentage = 0.20;
 
   // ============================================================
   // CURRENT USER
@@ -29,19 +31,35 @@ class EarningService {
       _auth.currentUser;
 
   // ============================================================
-  // USER EARNING
+  // MONEY
   // ============================================================
 
-  Future<void> addUserEarning({
+  double _toDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    if (value is String) {
+      return double.tryParse(value) ?? 0;
+    }
+
+    return 0;
+  }
+
+  // ============================================================
+  // RECORD EARNING
+  // ============================================================
+
+  Future<void> recordEarning({
     required double amount,
-    String source = 'earning',
+    required String source,
     String? description,
   }) async {
     final user = _auth.currentUser;
 
     if (user == null) {
       throw Exception(
-        'Earning পাওয়ার জন্য User Login করতে হবে।',
+        'Earning পেতে প্রথমে Login করুন।',
       );
     }
 
@@ -50,6 +68,11 @@ class EarningService {
         'Earning amount 0-এর বেশি হতে হবে।',
       );
     }
+
+    final cleanSource =
+        source.trim().isEmpty
+            ? 'unknown'
+            : source.trim();
 
     final userRef = _firestore
         .collection('users')
@@ -60,22 +83,14 @@ class EarningService {
         .doc('owner_wallet');
 
     final earningRef = _firestore
-        .collection('earnings')
+        .collection('earning_transactions')
         .doc();
-
-    final userShare =
-        amount *
-        ((100 - adminCommissionPercent) / 100);
-
-    final adminShare =
-        amount *
-        (adminCommissionPercent / 100);
 
     await _firestore.runTransaction(
       (transaction) async {
-        // --------------------------------------------------------
+        // ------------------------------------------------------
         // READ USER
-        // --------------------------------------------------------
+        // ------------------------------------------------------
 
         final userSnapshot =
             await transaction.get(userRef);
@@ -83,14 +98,9 @@ class EarningService {
         final userData =
             userSnapshot.data() ?? {};
 
-        final currentWallet =
-            _toDouble(
-          userData['wallet'],
-        );
-
-        // --------------------------------------------------------
+        // ------------------------------------------------------
         // READ OWNER WALLET
-        // --------------------------------------------------------
+        // ------------------------------------------------------
 
         final ownerSnapshot =
             await transaction.get(
@@ -100,25 +110,80 @@ class EarningService {
         final ownerData =
             ownerSnapshot.data() ?? {};
 
-        final currentOwnerBalance =
+        // ------------------------------------------------------
+        // CALCULATE
+        // ------------------------------------------------------
+
+        final userAmount =
+            double.parse(
+          (amount * userPercentage)
+              .toStringAsFixed(2),
+        );
+
+        final adminAmount =
+            double.parse(
+          (amount * adminPercentage)
+              .toStringAsFixed(2),
+        );
+
+        // ------------------------------------------------------
+        // OLD USER WALLET
+        // ------------------------------------------------------
+
+        final oldUserWallet =
+            _toDouble(
+          userData['wallet'],
+        );
+
+        final oldUserTotalEarned =
+            _toDouble(
+          userData['totalEarned'],
+        );
+
+        // ------------------------------------------------------
+        // OLD OWNER WALLET
+        // ------------------------------------------------------
+
+        final oldOwnerBalance =
             _toDouble(
           ownerData['balance'],
         );
 
-        final currentTotalEarned =
+        final oldOwnerTotalEarned =
             _toDouble(
           ownerData['totalEarned'],
         );
 
-        // --------------------------------------------------------
-        // UPDATE USER WALLET
-        // --------------------------------------------------------
+        // ------------------------------------------------------
+        // NEW VALUES
+        // ------------------------------------------------------
+
+        final newUserWallet =
+            oldUserWallet +
+                userAmount;
+
+        final newUserTotalEarned =
+            oldUserTotalEarned +
+                userAmount;
+
+        final newOwnerBalance =
+            oldOwnerBalance +
+                adminAmount;
+
+        final newOwnerTotalEarned =
+            oldOwnerTotalEarned +
+                adminAmount;
+
+        // ------------------------------------------------------
+        // UPDATE USER
+        // ------------------------------------------------------
 
         transaction.set(
           userRef,
           {
-            'wallet':
-                currentWallet + userShare,
+            'wallet': newUserWallet,
+            'totalEarned':
+                newUserTotalEarned,
             'updatedAt':
                 FieldValue.serverTimestamp(),
           },
@@ -127,19 +192,16 @@ class EarningService {
           ),
         );
 
-        // --------------------------------------------------------
-        // UPDATE ADMIN / OWNER WALLET
-        // --------------------------------------------------------
+        // ------------------------------------------------------
+        // UPDATE OWNER WALLET
+        // ------------------------------------------------------
 
         transaction.set(
           ownerWalletRef,
           {
-            'balance':
-                currentOwnerBalance +
-                    adminShare,
+            'balance': newOwnerBalance,
             'totalEarned':
-                currentTotalEarned +
-                    adminShare,
+                newOwnerTotalEarned,
             'updatedAt':
                 FieldValue.serverTimestamp(),
           },
@@ -148,22 +210,34 @@ class EarningService {
           ),
         );
 
-        // --------------------------------------------------------
-        // SAVE EARNING HISTORY
-        // --------------------------------------------------------
+        // ------------------------------------------------------
+        // EARNING TRANSACTION
+        // ------------------------------------------------------
 
         transaction.set(
           earningRef,
           {
             'userId': user.uid,
-            'source': source,
+            'source': cleanSource,
             'description':
-                description ?? '',
+                description?.trim(),
+
             'grossAmount': amount,
-            'userAmount': userShare,
-            'adminAmount': adminShare,
-            'adminCommissionPercent':
-                adminCommissionPercent,
+
+            'userAmount':
+                userAmount,
+
+            'adminAmount':
+                adminAmount,
+
+            'userPercentage':
+                userPercentage,
+
+            'adminPercentage':
+                adminPercentage,
+
+            'status': 'completed',
+
             'createdAt':
                 FieldValue.serverTimestamp(),
           },
@@ -173,47 +247,7 @@ class EarningService {
   }
 
   // ============================================================
-  // USER EARNING HISTORY
-  // ============================================================
-
-  Stream<QuerySnapshot<Map<String, dynamic>>>
-      userEarningsStream() {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      return const Stream.empty();
-    }
-
-    return _firestore
-        .collection('earnings')
-        .where(
-          'userId',
-          isEqualTo: user.uid,
-        )
-        .orderBy(
-          'createdAt',
-          descending: true,
-        )
-        .snapshots();
-  }
-
-  // ============================================================
-  // ADMIN REVENUE HISTORY
-  // ============================================================
-
-  Stream<QuerySnapshot<Map<String, dynamic>>>
-      adminRevenueStream() {
-    return _firestore
-        .collection('earnings')
-        .orderBy(
-          'createdAt',
-          descending: true,
-        )
-        .snapshots();
-  }
-
-  // ============================================================
-  // ADMIN REVENUE TOTAL
+  // OWNER WALLET STREAM
   // ============================================================
 
   Stream<DocumentSnapshot<Map<String, dynamic>>>
@@ -225,20 +259,48 @@ class EarningService {
   }
 
   // ============================================================
-  // MONEY CONVERTER
+  // EARNING TRANSACTIONS
   // ============================================================
 
-  static double _toDouble(
-    dynamic value,
-  ) {
-    if (value is num) {
-      return value.toDouble();
+  Stream<QuerySnapshot<Map<String, dynamic>>>
+      earningTransactionsStream() {
+    return _firestore
+        .collection(
+          'earning_transactions',
+        )
+        .orderBy(
+          'createdAt',
+          descending: true,
+        )
+        .limit(100)
+        .snapshots();
+  }
+
+  // ============================================================
+  // USER EARNING TRANSACTIONS
+  // ============================================================
+
+  Stream<QuerySnapshot<Map<String, dynamic>>>
+      currentUserEarningsStream() {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      return const Stream.empty();
     }
 
-    if (value is String) {
-      return double.tryParse(value) ?? 0;
-    }
-
-    return 0;
+    return _firestore
+        .collection(
+          'earning_transactions',
+        )
+        .where(
+          'userId',
+          isEqualTo: user.uid,
+        )
+        .orderBy(
+          'createdAt',
+          descending: true,
+        )
+        .limit(100)
+        .snapshots();
   }
 }
