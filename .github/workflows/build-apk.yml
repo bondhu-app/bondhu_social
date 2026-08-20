@@ -1,3 +1,60 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build Bondhu Social APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.0'
+          cache: true
+
+      - name: Check Flutter
+        run: flutter --version
+
+      - name: Check Android project
+        run: |
+          test -f android/app/src/main/AndroidManifest.xml
+          test -f android/app/src/main/kotlin/com/bondhu/social/MainActivity.kt
+          echo "Android project found"
+          echo "MainActivity.kt found"
+
+      - name: Check Firebase configuration
+        run: |
+          test -f android/app/google-services.json
+          echo "google-services.json found"
+
+      - name: Check pubspec.yaml
+        run: |
+          test -f pubspec.yaml
+          grep -q "uses-material-design: true" pubspec.yaml
+          echo "pubspec.yaml is valid"
+
+      - name: Flutter clean
+        run: flutter clean
+
+      - name: Get dependencies
+        run: flutter pub get
+
       - name: Find Android v1 embedding references
         shell: bash
         run: |
@@ -30,3 +87,15 @@
 
       - name: Build APK
         run: flutter build apk --release
+
+      - name: Verify APK
+        run: |
+          test -f build/app/outputs/flutter-apk/app-release.apk
+          echo "APK successfully created"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: bondhu-social-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
