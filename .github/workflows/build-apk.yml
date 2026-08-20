@@ -16,7 +16,7 @@ jobs:
 
     steps:
       # ==========================================
-      # 1. Checkout project
+      # 1. Checkout
       # ==========================================
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,11 +25,10 @@ jobs:
       # 2. Setup Java
       # ==========================================
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
       # ==========================================
       # 3. Setup Flutter
@@ -42,20 +41,14 @@ jobs:
           cache: true
 
       # ==========================================
-      # 4. Check Flutter
+      # 4. Flutter information
       # ==========================================
-      - name: Flutter Doctor
+      - name: Flutter Version
         run: |
           flutter --version
-          flutter doctor -v
 
       # ==========================================
-      # 5. Generate Android project
-      #
-      # IMPORTANT:
-      # This creates the missing android/ folder.
-      # Existing lib/, assets/, pubspec.yaml etc.
-      # are preserved.
+      # 5. Create missing Android project
       # ==========================================
       - name: Create Android Project
         run: |
@@ -65,27 +58,42 @@ jobs:
             .
 
       # ==========================================
-      # 6. Show Android structure
+      # 6. Verify Android project
       # ==========================================
-      - name: Check Android Project
+      - name: Verify Android Project
         run: |
           echo "=========================================="
-          echo "ANDROID PROJECT"
+          echo "ANDROID FOLDER"
           echo "=========================================="
+
+          if [ ! -d "android" ]; then
+            echo "ERROR: android folder was not created."
+            exit 1
+          fi
+
+          if [ ! -f "android/settings.gradle" ] && \
+             [ ! -f "android/settings.gradle.kts" ]; then
+            echo "ERROR: Android Gradle settings file not found."
+            exit 1
+          fi
+
+          echo "Android project created successfully."
+
+          echo "=========================================="
+          echo "ANDROID FILES"
+          echo "=========================================="
+
           find android -maxdepth 4 -type f | sort
 
       # ==========================================
-      # 7. Install Flutter dependencies
+      # 7. Flutter dependencies
       # ==========================================
       - name: Flutter Pub Get
         run: |
           flutter pub get
 
       # ==========================================
-      # 8. Analyze Dart project
-      #
-      # continue-on-error prevents warnings from
-      # stopping the APK build.
+      # 8. Flutter Analyze
       # ==========================================
       - name: Flutter Analyze
         continue-on-error: true
@@ -93,26 +101,38 @@ jobs:
           flutter analyze
 
       # ==========================================
-      # 9. Build Release APK
+      # 9. Clean build
       # ==========================================
-      - name: Build Release APK
+      - name: Flutter Clean
         run: |
           flutter clean
           flutter pub get
+
+      # ==========================================
+      # 10. Build APK
+      # ==========================================
+      - name: Build Release APK
+        run: |
           flutter build apk --release -v
 
       # ==========================================
-      # 10. Check APK
+      # 11. Verify APK
       # ==========================================
-      - name: Check APK
+      - name: Verify APK
         run: |
           echo "=========================================="
-          echo "APK FILES"
+          echo "APK OUTPUT"
           echo "=========================================="
-          find build/app/outputs/flutter-apk -type f -maxdepth 2 -print
+
+          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "ERROR: APK was not generated."
+            exit 1
+          fi
+
+          ls -lh build/app/outputs/flutter-apk/app-release.apk
 
       # ==========================================
-      # 11. Upload APK as GitHub Actions artifact
+      # 12. Upload APK
       # ==========================================
       - name: Upload APK
         uses: actions/upload-artifact@v4
