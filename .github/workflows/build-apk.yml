@@ -6,138 +6,256 @@ on:
     branches:
       - main
 
-permissions:
-  contents: write
-
 jobs:
   build:
-    name: Build Release APK
+    name: Build Bondhu Social APK
     runs-on: ubuntu-latest
 
     steps:
-      # ==========================================
-      # 1. Checkout
-      # ==========================================
-      - name: Checkout
+      # ============================================================
+      # CHECKOUT
+      # ============================================================
+
+      - name: Checkout project
         uses: actions/checkout@v4
 
-      # ==========================================
-      # 2. Setup Java
-      # ==========================================
-      - name: Setup Java
+      # ============================================================
+      # JAVA 17
+      # ============================================================
+
+      - name: Setup Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
-      # ==========================================
-      # 3. Setup Flutter
-      # ==========================================
+      # ============================================================
+      # FLUTTER
+      # ============================================================
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.0'
           channel: stable
+          flutter-version: '3.47.0'
           cache: true
 
-      # ==========================================
-      # 4. Flutter information
-      # ==========================================
-      - name: Flutter Version
+      # ============================================================
+      # VERSION CHECK
+      # ============================================================
+
+      - name: Check Flutter
         run: |
           flutter --version
+          dart --version
+          java --version
 
-      # ==========================================
-      # 5. Create missing Android project
-      # ==========================================
-      - name: Create Android Project
+      # ============================================================
+      # CHECK REQUIRED ANDROID FILES
+      # ============================================================
+
+      - name: Check Android project
+        shell: bash
         run: |
-          flutter create \
-            --platforms=android \
-            --project-name=bondhu_social \
-            .
+          set -e
 
-      # ==========================================
-      # 6. Verify Android project
-      # ==========================================
-      - name: Verify Android Project
+          echo "========================================"
+          echo "Checking Android project"
+          echo "========================================"
+
+          test -f android/settings.gradle
+          test -f android/gradle.properties
+          test -f android/gradle/wrapper/gradle-wrapper.properties
+          test -f android/app/build.gradle
+          test -f android/app/src/main/AndroidManifest.xml
+          test -f android/app/src/main/kotlin/com/bondhu/social/MainActivity.kt
+
+          echo "Android project files OK"
+
+      # ============================================================
+      # CHECK FIREBASE
+      # ============================================================
+
+      - name: Check Firebase
+        shell: bash
         run: |
-          echo "=========================================="
-          echo "ANDROID FOLDER"
-          echo "=========================================="
+          set -e
 
-          if [ ! -d "android" ]; then
-            echo "ERROR: android folder was not created."
-            exit 1
+          echo "========================================"
+          echo "Checking Firebase configuration"
+          echo "========================================"
+
+          test -f android/app/google-services.json
+
+          echo "Firebase configuration OK"
+
+      # ============================================================
+      # SHOW GRADLE VERSION
+      # ============================================================
+
+      - name: Check Gradle configuration
+        shell: bash
+        run: |
+          echo "========================================"
+          echo "Gradle Wrapper"
+          echo "========================================"
+
+          cat android/gradle/wrapper/gradle-wrapper.properties
+
+          echo ""
+          echo "========================================"
+          echo "Gradle Properties"
+          echo "========================================"
+
+          cat android/gradle.properties
+
+          echo ""
+          echo "========================================"
+          echo "Android Settings"
+          echo "========================================"
+
+          cat android/settings.gradle
+
+      # ============================================================
+      # CHECK ANDROID V1 EMBEDDING
+      # ============================================================
+
+      - name: Search Android v1 embedding
+        shell: bash
+        run: |
+          echo "========================================"
+          echo "Flutter v1 embedding search"
+          echo "========================================"
+
+          grep -RInE \
+            "io\.flutter\.app\.FlutterActivity|io\.flutter\.app\.FlutterApplication|PluginRegistry\.Registrar" \
+            android \
+            --exclude-dir=build \
+            --exclude-dir=.gradle \
+            || true
+
+          echo ""
+          echo "========================================"
+          echo "MainActivity"
+          echo "========================================"
+
+          cat android/app/src/main/kotlin/com/bondhu/social/MainActivity.kt
+
+          echo ""
+          echo "========================================"
+          echo "AndroidManifest"
+          echo "========================================"
+
+          cat android/app/src/main/AndroidManifest.xml
+
+      # ============================================================
+      # FLUTTER CLEAN
+      # ============================================================
+
+      - name: Flutter clean
+        run: flutter clean
+
+      # ============================================================
+      # PUB GET
+      # ============================================================
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      # ============================================================
+      # FLUTTER ANALYZE
+      # ============================================================
+
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-infos
+
+      # ============================================================
+      # BUILD APK
+      # ============================================================
+
+      - name: Build APK
+        id: build_apk
+        shell: bash
+        run: |
+          set -o pipefail
+
+          echo "========================================"
+          echo "Starting Release APK Build"
+          echo "========================================"
+
+          flutter build apk --release 2>&1 | tee build.log
+
+      # ============================================================
+      # SHOW REAL BUILD ERROR
+      # ============================================================
+
+      - name: Show Build Error
+        if: failure()
+        shell: bash
+        run: |
+          echo ""
+          echo "========================================"
+          echo "REAL BUILD ERROR"
+          echo "========================================"
+
+          if [ -f build.log ]; then
+            echo ""
+            echo "---- FAILURE / ERROR DETAILS ----"
+
+            grep -n -B 15 -A 40 -E \
+              "FAILURE:|What went wrong:|Could not|Execution failed|Gradle task|Error:|error:" \
+              build.log || true
+
+            echo ""
+            echo "---- LAST 150 LOG LINES ----"
+
+            tail -n 150 build.log
+          else
+            echo "build.log was not created."
           fi
 
-          if [ ! -f "android/settings.gradle" ] && \
-             [ ! -f "android/settings.gradle.kts" ]; then
-            echo "ERROR: Android Gradle settings file not found."
-            exit 1
-          fi
+      # ============================================================
+      # VERIFY APK
+      # ============================================================
 
-          echo "Android project created successfully."
-
-          echo "=========================================="
-          echo "ANDROID FILES"
-          echo "=========================================="
-
-          find android -maxdepth 4 -type f | sort
-
-      # ==========================================
-      # 7. Flutter dependencies
-      # ==========================================
-      - name: Flutter Pub Get
-        run: |
-          flutter pub get
-
-      # ==========================================
-      # 8. Flutter Analyze
-      # ==========================================
-      - name: Flutter Analyze
-        continue-on-error: true
-        run: |
-          flutter analyze
-
-      # ==========================================
-      # 9. Clean build
-      # ==========================================
-      - name: Flutter Clean
-        run: |
-          flutter clean
-          flutter pub get
-
-      # ==========================================
-      # 10. Build APK
-      # ==========================================
-      - name: Build Release APK
-        run: |
-          flutter build apk --release -v
-
-      # ==========================================
-      # 11. Verify APK
-      # ==========================================
       - name: Verify APK
+        if: success()
+        shell: bash
         run: |
-          echo "=========================================="
-          echo "APK OUTPUT"
-          echo "=========================================="
+          set -e
 
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "ERROR: APK was not generated."
-            exit 1
-          fi
+          echo "========================================"
+          echo "Verifying APK"
+          echo "========================================"
+
+          test -f build/app/outputs/flutter-apk/app-release.apk
 
           ls -lh build/app/outputs/flutter-apk/app-release.apk
 
-      # ==========================================
-      # 12. Upload APK
-      # ==========================================
+          echo "APK successfully created"
+
+      # ============================================================
+      # UPLOAD APK
+      # ============================================================
+
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: bondhu-social-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
-          retention-days: 30
+
+      # ============================================================
+      # UPLOAD BUILD LOG
+      # ============================================================
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bondhu-social-build-log
+          path: |
+            build.log
+          if-no-files-found: ignore
